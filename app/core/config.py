@@ -2,6 +2,8 @@
 Configuración centralizada de la aplicación IDP
 """
 
+import logging
+import sys
 from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
@@ -72,7 +74,7 @@ class Settings(BaseSettings):
     # CONFIGURACIÓN DE PROCESAMIENTO
     # ===========================================
     max_file_size_mb: int = 50
-    sync_processing_threshold_mb: int = 5
+    sync_processing_threshold_mb: int = 10  # Cambiado a 10MB según requerimiento
     max_processing_time_seconds: int = 300
     
     class Config:
@@ -82,6 +84,39 @@ class Settings(BaseSettings):
 
 # Instancia global de configuración
 settings = Settings()
+
+
+def setup_logging():
+    """Configurar logging de la aplicación"""
+    # Configurar formato del log
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    
+    # Configurar nivel de log
+    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    
+    # Configurar logging básico
+    logging.basicConfig(
+        level=log_level,
+        format=log_format,
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler("idp.log")
+        ]
+    )
+    
+    # Configurar logging específico para la aplicación
+    app_logger = logging.getLogger("app")
+    app_logger.setLevel(log_level)
+    
+    # Configurar logging para librerías externas
+    logging.getLogger("azure").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    
+    logger = logging.getLogger(__name__)
+    logger.info("🚀 Logging configurado correctamente")
+    logger.info(f"📊 Nivel de log: {settings.log_level}")
+    logger.info(f"🌍 Entorno: {settings.app_environment}")
 
 
 def get_azure_credentials() -> dict:
@@ -110,3 +145,7 @@ def get_cors_origins() -> List[str]:
     else:
         # En desarrollo, permitir localhost
         return ["http://localhost:3000", "http://localhost:8000"]
+
+
+# Configurar logging al importar el módulo
+setup_logging()
