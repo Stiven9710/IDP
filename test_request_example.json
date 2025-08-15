@@ -1,0 +1,85 @@
+{
+  "document_path": "https://example.com/Invoice_2082463105.pdf",
+  "processing_mode": "hybrid_consensus",
+  "prompt_general": "Actúa como un analista financiero experto especializado en facturas colombianas. Analiza la siguiente factura de un proveedor y extrae los campos detallados a continuación de forma precisa. Si un campo no está presente, devuélvelo como null. Para fechas, usa formato YYYY-MM-DD. Para montos, extrae solo el valor numérico sin símbolos de moneda.",
+  "fields": [
+    {
+      "name": "numero_factura",
+      "type": "string",
+      "description": "El identificador único de la factura. Busca en la parte superior del documento, puede contener prefijos como 'INV-', 'FC-', o números secuenciales."
+    },
+    {
+      "name": "fecha_factura",
+      "type": "date",
+      "description": "La fecha de emisión de la factura. Busca en la parte superior del documento y formatéala como YYYY-MM-DD."
+    },
+    {
+      "name": "fecha_vencimiento",
+      "type": "date",
+      "description": "La fecha límite para el pago de la factura. Si no está especificada, devuélvela como null."
+    },
+    {
+      "name": "proveedor_nombre",
+      "type": "string",
+      "description": "El nombre completo de la empresa o persona que emite la factura. Busca en la parte superior izquierda del documento."
+    },
+    {
+      "name": "proveedor_nit",
+      "type": "string",
+      "description": "El número de identificación tributaria (NIT) del proveedor. Busca cerca del nombre del proveedor."
+    },
+    {
+      "name": "cliente_nombre",
+      "type": "string",
+      "description": "El nombre de la empresa o persona a quien se factura. Busca en la parte superior derecha del documento."
+    },
+    {
+      "name": "cliente_nit",
+      "type": "string",
+      "description": "El NIT del cliente. Busca cerca del nombre del cliente."
+    },
+    {
+      "name": "subtotal",
+      "type": "number",
+      "description": "El subtotal de la factura antes de impuestos. Busca en la sección de totales."
+    },
+    {
+      "name": "iva",
+      "type": "number",
+      "description": "El valor del IVA (19% en Colombia). Busca en la sección de totales."
+    },
+    {
+      "name": "total_a_pagar",
+      "type": "number",
+      "description": "El valor final y total de la factura después de todos los impuestos. Es el monto más grande y destacado en la sección de totales."
+    },
+    {
+      "name": "items_de_linea",
+      "type": "array",
+      "description": "Extrae todos los productos o servicios listados en la tabla de la factura. Cada línea debe ser un objeto JSON separado dentro de este array, con las claves: 'descripcion', 'cantidad', 'precio_unitario' y 'total_linea'."
+    },
+    {
+      "name": "condiciones_pago",
+      "type": "string",
+      "description": "Las condiciones de pago especificadas en la factura. Por ejemplo: '30 días', 'contado', etc."
+    },
+    {
+      "name": "moneda",
+      "type": "string",
+      "description": "La moneda en la que está expresada la factura. Por ejemplo: 'COP', 'USD', 'EUR'."
+    },
+    {
+      "name": "observaciones",
+      "type": "string",
+      "description": "Cualquier observación o nota adicional que aparezca en la factura."
+    }
+  ],
+  "metadata": {
+    "correlation_id": "test-invoice-2082463105",
+    "source_system": "Test Script",
+    "priority": "high",
+    "document_type": "invoice",
+    "country": "Colombia",
+    "test_document": true
+  }
+}
