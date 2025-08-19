@@ -8,6 +8,8 @@ import json
 import logging
 from typing import Dict, Any, List, Optional
 import httpx
+from azure.core.credentials import AzureKeyCredential
+from azure.ai.documentintelligence import DocumentIntelligenceClient
 
 from app.core.config import settings
 from app.models.request import FieldDefinition
@@ -251,7 +253,7 @@ class AzureOpenAIClient:
         
         try:
             # Usar Document Intelligence para extraer texto
-            doc_intelligence_client = DocumentIntelligenceClient()
+            doc_intelligence_client = CustomDocumentIntelligenceClient()
             extracted_text = await doc_intelligence_client.extract_text_from_pdf(pdf_bytes)
             
             if not extracted_text:
@@ -486,7 +488,7 @@ class AzureOpenAIClient:
         return extracted_data
 
 
-class DocumentIntelligenceClient:
+class CustomDocumentIntelligenceClient:
     """Cliente para Azure Document Intelligence"""
     
     def __init__(self):
@@ -512,74 +514,35 @@ class DocumentIntelligenceClient:
         logger.info("📄 Extrayendo texto del PDF con Document Intelligence")
         
         try:
-            # URL para el análisis de documentos
-            endpoint = self.endpoint.rstrip('/')  # Remover trailing slash si existe
-            url = f"{endpoint}/formrecognizer/documentModels/prebuilt-document:analyze"
-            headers = {
-                "Content-Type": "application/octet-stream",
-                "Ocp-Apim-Subscription-Key": self.api_key
-            }
+            # Usar la librería oficial de Azure
+            client = DocumentIntelligenceClient(
+                endpoint=self.endpoint, 
+                credential=AzureKeyCredential(self.api_key)
+            )
             
-            logger.info(f"🌐 Llamando a Document Intelligence: {url}")
+            logger.info(f"🌐 Llamando a Document Intelligence con librería oficial")
             
-            async with httpx.AsyncClient() as client:
-                # Iniciar análisis
-                response = await client.post(
-                    url,
-                    headers=headers,
-                    content=pdf_bytes,
-                    timeout=60.0
-                )
-                
-                response.raise_for_status()
-                
-                # Obtener ID de operación
-                operation_location = response.headers.get("Operation-Location")
-                if not operation_location:
-                    raise ValueError("No se recibió Operation-Location en la respuesta")
-                
-                logger.info(f"🔄 Operación iniciada: {operation_location}")
-                
-                # Esperar resultados
-                result = await self._wait_for_completion(operation_location)
-                
-                # Extraer texto del resultado
-                extracted_text = self._extract_text_from_result(result)
-                
-                logger.info(f"✅ Texto extraído exitosamente: {len(extracted_text)} caracteres")
-                return extracted_text
+            # Iniciar análisis usando el modelo prebuilt-read
+            poller = client.begin_analyze_document(
+                "prebuilt-read", 
+                pdf_bytes,
+                content_type="application/pdf"
+            )
+            
+            # Esperar resultados
+            result = poller.result()
+            
+            # Extraer texto del resultado
+            extracted_text = result.content if result.content else ""
+            
+            logger.info(f"✅ Texto extraído exitosamente: {len(extracted_text)} caracteres")
+            return extracted_text
                 
         except Exception as e:
             logger.error(f"❌ Error extrayendo texto del PDF: {str(e)}")
             raise
     
-    def _extract_text_from_result(self, result: Dict[str, Any]) -> str:
-        """Extraer texto del resultado de Document Intelligence"""
-        logger.info("🔍 Extrayendo texto del resultado de Document Intelligence")
-        
-        try:
-            # Obtener contenido del documento
-            content = result.get("analyzeResult", {}).get("content", "")
-            
-            if not content:
-                logger.warning("⚠️ No se encontró contenido en el resultado")
-                return ""
-            
-            # Extraer texto de todos los elementos
-            text_parts = []
-            for item in content:
-                if isinstance(item, dict) and "text" in item:
-                    text_parts.append(item["text"])
-            
-            # Unir todo el texto
-            full_text = " ".join(text_parts)
-            
-            logger.info(f"📝 Texto extraído: {len(full_text)} caracteres")
-            return full_text
-            
-        except Exception as e:
-            logger.error(f"❌ Error extrayendo texto del resultado: {str(e)}")
-            return ""
+
 
     async def process_document(
         self,
@@ -601,91 +564,39 @@ class DocumentIntelligenceClient:
         logger.info("📄 Iniciando procesamiento con Azure Document Intelligence")
         
         try:
-            # URL para el análisis de documentos
-            endpoint = self.endpoint.rstrip('/')  # Remover trailing slash si existe
-            url = f"{endpoint}/formrecognizer/documentModels/prebuilt-document:analyze"
-            headers = {
-                "Content-Type": "application/octet-stream",
-                "Ocp-Apim-Subscription-Key": self.api_key
-            }
+            # Usar la librería oficial de Azure
+            client = DocumentIntelligenceClient(
+                endpoint=self.endpoint, 
+                credential=AzureKeyCredential(self.api_key)
+            )
             
-            logger.info(f"🌐 Llamando a Document Intelligence: {url}")
+            logger.info(f"🌐 Llamando a Document Intelligence con librería oficial")
             
-            async with httpx.AsyncClient() as client:
-                # Iniciar análisis
-                response = await client.post(
-                    url,
-                    headers=headers,
-                    content=document_content,
-                    timeout=60.0
-                )
-                
-                response.raise_for_status()
-                
-                # Obtener ID de operación
-                operation_location = response.headers.get("Operation-Location")
-                if not operation_location:
-                    raise ValueError("No se recibió Operation-Location en la respuesta")
-                
-                logger.info(f"🔄 Operación iniciada: {operation_location}")
-                
-                # Esperar resultados
-                result = await self._wait_for_completion(operation_location)
-                
-                # Extraer campos relevantes
-                extracted_data = self._extract_fields_from_result(result, fields)
-                
-                logger.info("✅ Document Intelligence completado exitosamente")
-                return extracted_data
+            # Iniciar análisis usando el modelo prebuilt-read
+            poller = client.begin_analyze_document(
+                "prebuilt-read", 
+                document_content,
+                content_type="application/pdf"
+            )
+            
+            # Esperar resultados
+            result = poller.result()
+            
+            # Extraer campos relevantes del resultado
+            extracted_data = self._extract_fields_from_result(result, fields)
+            
+            logger.info("✅ Document Intelligence completado exitosamente")
+            return extracted_data
                 
         except Exception as e:
             logger.error(f"❌ Error en Document Intelligence: {str(e)}")
             raise
     
-    async def _wait_for_completion(self, operation_url: str) -> Dict[str, Any]:
-        """Esperar a que se complete la operación de análisis"""
-        logger.info("⏳ Esperando completación de Document Intelligence...")
-        
-        headers = {
-            "Ocp-Apim-Subscription-Key": self.api_key
-        }
-        
-        max_attempts = 30
-        attempt = 0
-        
-        async with httpx.AsyncClient() as client:
-            while attempt < max_attempts:
-                try:
-                    response = await client.get(operation_url, headers=headers)
-                    response.raise_for_status()
-                    
-                    result = response.json()
-                    status = result.get("status")
-                    
-                    if status == "succeeded":
-                        logger.info("✅ Document Intelligence completado")
-                        return result
-                    elif status == "failed":
-                        error = result.get("error", {})
-                        raise Exception(f"Document Intelligence falló: {error}")
-                    elif status in ["running", "notStarted"]:
-                        logger.info(f"🔄 Estado: {status}, esperando...")
-                        await asyncio.sleep(2)
-                        attempt += 1
-                    else:
-                        logger.warning(f"⚠️ Estado desconocido: {status}")
-                        await asyncio.sleep(2)
-                        attempt += 1
-                        
-                except Exception as e:
-                    logger.error(f"❌ Error consultando estado: {str(e)}")
-                    raise
-        
-        raise TimeoutError("Document Intelligence no completó en el tiempo esperado")
+
     
     def _extract_fields_from_result(
         self, 
-        result: Dict[str, Any], 
+        result, 
         fields: List[FieldDefinition]
     ) -> Dict[str, Any]:
         """Extraer campos específicos del resultado de Document Intelligence"""
@@ -694,8 +605,8 @@ class DocumentIntelligenceClient:
         extracted_data = {}
         
         try:
-            # Obtener contenido del documento
-            content = result.get("analyzeResult", {}).get("content", "")
+            # Obtener contenido del documento de la librería oficial
+            content = result.content if hasattr(result, 'content') else ""
             
             # Para cada campo solicitado, buscar en el contenido
             for field in fields:
