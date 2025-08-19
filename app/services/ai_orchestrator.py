@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from app.core.config import settings
 from app.models.request import FieldDefinition
 from app.models.response import ExtractionField, ProcessingMode
-from app.utils.azure_clients import AzureOpenAIClient, DocumentIntelligenceClient
+from app.utils.azure_clients import AzureOpenAIClient, CustomDocumentIntelligenceClient
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class AIOrchestratorService:
     def __init__(self):
         """Inicializar el orquestador de IA"""
         self.openai_client = AzureOpenAIClient()
-        self.doc_intelligence_client = DocumentIntelligenceClient()
+        self.doc_intelligence_client = CustomDocumentIntelligenceClient()
         
         logger.info("🤖 AIOrchestratorService inicializado correctamente")
     
