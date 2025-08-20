@@ -23,6 +23,7 @@ from app.models.response import (
 from app.services.ai_orchestrator import AIOrchestratorService
 from app.services.storage_service import StorageService
 from app.services.queue_service import QueueService
+from app.services.cosmos_service import CosmosService
 from app.utils.helpers import get_file_size_from_url, is_supported_format
 
 # Configurar logging
@@ -37,6 +38,7 @@ class DocumentService:
         self.ai_orchestrator = AIOrchestratorService()
         self.storage_service = StorageService()
         self.queue_service = QueueService()
+        self.cosmos_service = CosmosService()
         
         # Umbral para procesamiento asíncrono (10MB según requerimiento)
         self.async_threshold_mb = 10.0
@@ -98,6 +100,9 @@ class DocumentService:
     ) -> DocumentProcessingResponse:
         """Procesar documento de forma síncrona"""
         logger.info(f"⚡ Iniciando procesamiento síncrono para job {job_id}")
+        logger.info(f"📊 Tamaño del documento: {file_size_mb:.2f} MB")
+        logger.info(f"🎯 Modo de procesamiento: {request.processing_mode}")
+        logger.info(f"📋 Campos a extraer: {len(request.fields)}")
         
         try:
             # Descargar documento temporalmente
@@ -105,15 +110,19 @@ class DocumentService:
             logger.info(f"📥 Documento descargado: {len(document_content)} bytes")
             
             # Procesar con IA
+            logger.info(f"🤖 Iniciando procesamiento con IA...")
             extraction_result = await self.ai_orchestrator.process_document(
                 document_content=document_content,
                 fields=request.fields,
                 prompt_general=request.prompt_general,
                 processing_mode=request.processing_mode
             )
+            logger.info(f"✅ Procesamiento con IA completado")
+            logger.info(f"📊 Campos extraídos: {len(extraction_result.extraction_data)}")
             
             # Calcular tiempo de procesamiento
             processing_time_ms = int((time.time() - start_time) * 1000)
+            logger.info(f"⏱️ Tiempo total de procesamiento: {processing_time_ms}ms")
             
             # Crear response
             response = DocumentProcessingResponse(
@@ -132,11 +141,102 @@ class DocumentService:
                 correlation_id=request.metadata.get("correlation_id") if request.metadata else None
             )
             
-            # Guardar resultado en Cosmos DB
-            await self.storage_service.save_extraction_result(response)
-            logger.info(f"💾 Resultado guardado en Cosmos DB para job {job_id}")
+            # ===== INICIO: GUARDADO EN COSMOS DB =====
+            logger.info(f"🗄️ Iniciando guardado en Azure Cosmos DB...")
             
-            logger.info(f"✅ Procesamiento síncrono completado para job {job_id}")
+            # Guardar información del documento en Cosmos DB
+            document_info = {
+                "filename": request.document_path.split("/")[-1] if "/" in request.document_path else request.document_path,
+                "file_size_mb": file_size_mb,
+                "file_type": request.document_path.split(".")[-1] if "." in request.document_path else "unknown",
+                "status": "processed",
+                "processing_mode": request.processing_mode,
+                "correlation_id": request.metadata.get("correlation_id") if request.metadata else None,
+                "job_id": job_id,
+                "created_at": datetime.utcnow().isoformat(),
+                "ai_processing_time_ms": processing_time_ms
+            }
+            
+            logger.info(f"📄 Guardando información del documento en Cosmos DB...")
+            logger.info(f"   📁 Nombre: {document_info['filename']}")
+            logger.info(f"   📏 Tamaño: {document_info['file_size_mb']:.2f} MB")
+            logger.info(f"   🎯 Modo: {document_info['processing_mode']}")
+            
+            doc_id = await self.cosmos_service.save_document(document_info)
+            if doc_id:
+                logger.info(f"✅ Documento guardado exitosamente en Cosmos DB")
+                logger.info(f"   🆔 Document ID: {doc_id}")
+                logger.info(f"   📍 Container: documents")
+                
+                # Guardar resultado de extracción
+                extraction_data = {
+                    "document_id": doc_id,
+                    "extraction_date": datetime.utcnow().isoformat(),
+                    "processing_time_ms": processing_time_ms,
+                    "strategy_used": request.processing_mode,
+                    "extraction_data": [field.dict() for field in extraction_result.extraction_data],
+                    "processing_summary": {
+                        "processing_status": "completed",
+                        "pages_processed": extraction_result.pages_processed,
+                        "review_flags": extraction_result.review_flags
+                    },
+                    "job_id": job_id,
+                    "filename": document_info['filename'],
+                    "fields_extracted": len(extraction_result.extraction_data)
+                }
+                
+                logger.info(f"🔍 Guardando resultado de extracción en Cosmos DB...")
+                logger.info(f"   📊 Campos extraídos: {extraction_data['fields_extracted']}")
+                logger.info(f"   🎯 Estrategia: {extraction_data['strategy_used']}")
+                
+                ext_id = await self.cosmos_service.save_extraction_result(extraction_data)
+                if ext_id:
+                    logger.info(f"✅ Extracción guardada exitosamente en Cosmos DB")
+                    logger.info(f"   🆔 Extraction ID: {ext_id}")
+                    logger.info(f"   📍 Container: extractions")
+                    logger.info(f"   🔗 Vinculada al documento: {doc_id}")
+                else:
+                    logger.error(f"❌ ERROR: No se pudo guardar la extracción en Cosmos DB")
+                    logger.error(f"   📄 Document ID: {doc_id}")
+                    logger.error(f"   🔍 Datos de extracción: {len(extraction_data)} campos")
+            else:
+                logger.error(f"❌ ERROR: No se pudo guardar el documento en Cosmos DB")
+                logger.error(f"   📁 Nombre: {document_info['filename']}")
+                logger.error(f"   📏 Tamaño: {document_info['file_size_mb']:.2f} MB")
+            
+            # ===== FIN: GUARDADO EN COSMOS DB =====
+            
+            # Crear trabajo de procesamiento
+            job_info = {
+                "job_id": job_id,
+                "document_name": document_info['filename'],
+                "processing_mode": request.processing_mode,
+                "status": "completed",
+                "created_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.utcnow().isoformat(),
+                "processing_time_ms": processing_time_ms,
+                "fields_extracted": len(extraction_result.extraction_data),
+                "document_id": doc_id if doc_id else None,
+                "extraction_id": ext_id if 'ext_id' in locals() else None
+            }
+            
+            logger.info(f"⚙️ Guardando información del trabajo en Cosmos DB...")
+            job_db_id = await self.cosmos_service.create_processing_job(job_info)
+            if job_db_id:
+                logger.info(f"✅ Trabajo guardado exitosamente en Cosmos DB")
+                logger.info(f"   🆔 Job DB ID: {job_db_id}")
+                logger.info(f"   📍 Container: processing_jobs")
+            else:
+                logger.warning(f"⚠️ No se pudo guardar el trabajo en Cosmos DB")
+            
+            # Resumen final
+            logger.info(f"🎉 RESUMEN FINAL - Job {job_id}:")
+            logger.info(f"   📄 Documento: {document_info['filename']} ({file_size_mb:.2f} MB)")
+            logger.info(f"   🤖 IA: {request.processing_mode} - {len(extraction_result.extraction_data)} campos")
+            logger.info(f"   ⏱️ Tiempo: {processing_time_ms}ms")
+            logger.info(f"   🗄️ Cosmos DB: Document={doc_id}, Extraction={ext_id if 'ext_id' in locals() else 'N/A'}, Job={job_db_id if 'job_db_id' in locals() else 'N/A'}")
+            
+            logger.info(f"✅ Procesamiento síncrono completado exitosamente para job {job_id}")
             return response
             
         except Exception as e:

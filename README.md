@@ -3,6 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com)
 [![Azure](https://img.shields.io/badge/Azure-Cloud-blue.svg)](https://azure.microsoft.com)
+[![Cosmos DB](https://img.shields.io/badge/Cosmos%20DB-NoSQL-green.svg)](https://azure.microsoft.com/services/cosmos-db/)
 
 ## 🎯 **Descripción del Proyecto**
 
@@ -10,9 +11,11 @@ IDP Expert System es una solución robusta y escalable para el procesamiento int
 
 - **FastAPI** como framework web asíncrono de alto rendimiento
 - **Azure AI Services** para extracción inteligente de datos (GPT-4o + Document Intelligence)
+- **Azure Cosmos DB** para persistencia y consulta de datos en tiempo real
 - **Arquitectura híbrida** que combina procesamiento síncrono y asíncrono
 - **Umbral inteligente** de 10MB para decidir el tipo de procesamiento
 - **✅ 3 Estrategias de Extracción** completamente funcionales y validadas
+- **🗄️ Persistencia Automática** en Cosmos DB con logs detallados
 
 ## 🚀 **Características Principales**
 
@@ -25,6 +28,12 @@ IDP Expert System es una solución robusta y escalable para el procesamiento int
 - **Azure OpenAI GPT-4o**: Procesamiento de imágenes y documentos
 - **Azure Document Intelligence**: OCR y análisis de documentos
 - **Consenso híbrido**: Comparación y validación entre servicios
+
+### **Persistencia y Consulta de Datos**
+- **Azure Cosmos DB**: Almacenamiento automático de documentos y extracciones
+- **Containers organizados**: `documents`, `extractions`, `processing_jobs`
+- **Consultas en tiempo real**: Historial, búsquedas y estadísticas
+- **Logs detallados**: Visibilidad completa del proceso de guardado
 
 ### **Formatos Soportados**
 - **Documentos**: PDF, DOCX, DOC, TXT, RTF
@@ -51,11 +60,18 @@ IDP Expert System es una solución robusta y escalable para el procesamiento int
    - Máxima confiabilidad con consenso inteligente
    - Ideal para documentos críticos
 
+### **✅ Cosmos DB Completamente Integrado**
+- **🗄️ Persistencia automática**: Documentos y extracciones se guardan automáticamente
+- **📊 Containers organizados**: Estructura clara para consultas
+- **🔍 Búsquedas en tiempo real**: Historial completo de procesamiento
+- **📈 Estadísticas automáticas**: Conteos y métricas del sistema
+
 ### **📊 Resultados Validados**
 - **Factura AWS**: Extracción exitosa de 9 campos
 - **Consenso alto**: 6 campos con validación cruzada perfecta
 - **Consenso medio**: 2 campos con diferencias resueltas
 - **Solo texto**: 1 campo extraído únicamente por Document Intelligence
+- **Persistencia confirmada**: Datos almacenados en Cosmos DB
 
 ## 📋 **Requisitos del Sistema**
 
@@ -102,6 +118,14 @@ AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
 # Azure Document Intelligence
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://uc-ocr.cognitiveservices.azure.com/
 AZURE_DOCUMENT_INTELLIGENCE_API_KEY=tu-api-key
+
+# Azure Cosmos DB
+AZURE_COSMOS_ENDPOINT=https://uc-dbcosmos-nosql.documents.azure.com:443/
+AZURE_COSMOS_KEY=tu-api-key
+AZURE_COSMOS_DATABASE_NAME=idp-database
+AZURE_COSMOS_CONTAINER_DOCUMENTS=documents
+AZURE_COSMOS_CONTAINER_EXTRACTIONS=extractions
+AZURE_COSMOS_CONTAINER_JOBS=processing_jobs
 ```
 
 ## 🧪 **Pruebas del Sistema**
@@ -109,6 +133,11 @@ AZURE_DOCUMENT_INTELLIGENCE_API_KEY=tu-api-key
 ### **Script de Prueba Automático**
 ```bash
 python test_idp_with_json.py
+```
+
+### **Script de Consulta Cosmos DB**
+```bash
+python query_cosmos_data.py
 ```
 
 ### **JSON de Ejemplo**
@@ -160,7 +189,12 @@ curl -X POST 'http://localhost:8000/api/v1/documents/process-upload' \
 - `GET /api/v1/documents/{job_id}/result` - Obtener resultado
 - `GET /api/v1/documents/search` - Buscar documentos
 - `GET /api/v1/health` - Verificar salud del servicio
+- `GET /api/v1/health/cosmos` - Verificar salud de Cosmos DB
 - `GET /api/v1/jobs` - Listar trabajos
+
+### **5. Nuevos Endpoints de Cosmos DB**
+- `GET /api/v1/documents/extractions/history/{document_id}` - Historial de extracciones
+- `GET /api/v1/documents/extractions/search` - Búsqueda en extracciones
 
 ## 🔄 **Flujos de Procesamiento**
 
@@ -170,7 +204,7 @@ curl -X POST 'http://localhost:8000/api/v1/documents/process-upload' \
 2. FastAPI → Document Service
 3. Document Service → AI Orchestrator
 4. AI Orchestrator → Azure AI Services
-5. AI Orchestrator → Storage Service
+5. AI Orchestrator → Cosmos DB (Automático)
 6. Response → Cliente (HTTP 200 + Datos)
 ```
 
@@ -207,6 +241,30 @@ curl -X POST 'http://localhost:8000/api/v1/documents/process-upload' \
 - **Casos de uso**: Documentos críticos, auditoría requerida
 - **Tiempo**: ~4-6 segundos
 
+## 🗄️ **Integración con Cosmos DB**
+
+### **Containers Organizados**
+- **`documents`**: Información de documentos procesados
+- **`extractions`**: Resultados de extracción con metadatos
+- **`processing_jobs`**: Trabajos de procesamiento y estado
+
+### **Datos Almacenados Automáticamente**
+```json
+{
+  "document_id": "doc_e0b877b2-2047-4f31-bf88-ab129da8d55e",
+  "filename": "Invoice_2082463105.pdf",
+  "file_size_mb": 0.09,
+  "processing_mode": "hybrid_consensus",
+  "status": "processed",
+  "created_at": "2025-08-20T03:01:59.600621"
+}
+```
+
+### **Consultas Disponibles**
+- **Historial por documento**: Todas las extracciones de un documento
+- **Búsqueda por texto**: Encontrar extracciones por contenido
+- **Estadísticas del sistema**: Conteos y métricas en tiempo real
+
 ## 📊 **Tipos de Campos Soportados**
 
 | Tipo | Descripción | Ejemplo |
@@ -232,6 +290,12 @@ MAX_FILE_SIZE_MB=50
 
 # Nivel de logging
 LOG_LEVEL=INFO
+
+# Cosmos DB
+AZURE_COSMOS_DATABASE_NAME=idp-database
+AZURE_COSMOS_CONTAINER_DOCUMENTS=documents
+AZURE_COSMOS_CONTAINER_EXTRACTIONS=extractions
+AZURE_COSMOS_CONTAINER_JOBS=processing_jobs
 ```
 
 ### **Personalización de Prompts**
@@ -241,16 +305,25 @@ LOG_LEVEL=INFO
 
 ## 📈 **Monitoreo y Logs**
 
-### **Logs Estructurados**
-- Emojis para identificación visual rápida
-- Timestamps precisos
-- Niveles de log configurables
-- Archivo de log: `idp.log`
+### **Logs Estructurados con Emojis**
+- 🚀 **Inicio de operaciones**
+- ✅ **Operaciones exitosas**
+- ⚠️ **Advertencias y casos especiales**
+- ❌ **Errores y fallos**
+- 🗄️ **Operaciones de Cosmos DB**
+- 🔍 **Procesos de extracción**
+
+### **Ejemplos de Logs Mejorados**
+```
+2025-08-19 22:01:58,764 - app.api.v1.endpoints.documents - INFO - 🗄️ Iniciando guardado en Azure Cosmos DB...
+2025-08-19 22:01:59,336 - app.services.cosmos_service - INFO - ✅ Documento guardado exitosamente en Cosmos DB
+2025-08-19 22:01:59,599 - app.services.cosmos_service - INFO - ✅ Extracción guardada exitosamente en Cosmos DB
+```
 
 ### **Health Checks**
 - `/health` - Estado básico
-- `/health/detailed` - Estado detallado
-- `/health/ready` - Preparación del servicio
+- `/health/cosmos` - Estado de Cosmos DB
+- `/health/detailed` - Estado detallado de todos los componentes
 
 ## 🚀 **Despliegue**
 
@@ -289,6 +362,18 @@ curl -X POST "http://localhost:8000/api/v1/documents/process-upload" \
 3. Ajustar prompt general
 4. Cambiar modo de procesamiento
 
+### **Consultar Datos en Cosmos DB**
+```bash
+# Ver estadísticas
+python query_cosmos_data.py
+
+# Consultar historial desde API
+curl "http://localhost:8000/api/v1/documents/extractions/history/doc_id_aqui"
+
+# Buscar extracciones
+curl "http://localhost:8000/api/v1/documents/extractions/search?query=2082463105"
+```
+
 ## 📚 **Documentación Adicional**
 
 - **Documentación Funcional**: `docs/Documentacion_Funcional_API.md`
@@ -320,10 +405,20 @@ Este proyecto está bajo la licencia MIT. Ver el archivo `LICENSE` para más det
 
 ## 🎯 **Próximos Pasos**
 
-1. **Configurar credenciales de Azure** en `.env`
+1. **Configurar credenciales de Azure** en `.env` (incluyendo Cosmos DB)
 2. **Ejecutar pruebas** con `python test_idp_with_json.py`
 3. **Iniciar servidor** con `python main.py`
 4. **Probar API** en http://localhost:8000/docs
-5. **Personalizar campos** según tus necesidades
+5. **Verificar Cosmos DB** con `python query_cosmos_data.py`
+6. **Personalizar campos** según tus necesidades
 
-¡El sistema IDP está funcionando perfectamente con las 3 estrategias de extracción! 🚀✨
+## 🎊 **¡Sistema Completamente Funcional!**
+
+El sistema IDP está funcionando perfectamente con:
+- ✅ **3 estrategias de extracción** validadas
+- ✅ **Integración completa con Cosmos DB**
+- ✅ **Logs detallados** del proceso completo
+- ✅ **Persistencia automática** de datos
+- ✅ **Consultas en tiempo real** disponibles
+
+¡El sistema está listo para producción! 🚀✨

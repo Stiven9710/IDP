@@ -5,8 +5,10 @@ Endpoint de verificación de salud del servicio IDP
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 import os
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/")
@@ -60,3 +62,23 @@ async def readiness_check():
         "timestamp": datetime.utcnow().isoformat(),
         "message": "Servicio listo para recibir tráfico"
     }
+
+
+@router.get("/cosmos")
+async def cosmos_health_check():
+    """Verificar salud de Cosmos DB"""
+    try:
+        from app.services.cosmos_service import CosmosService
+        
+        cosmos_service = CosmosService()
+        health_status = await cosmos_service.health_check()
+        
+        return health_status
+        
+    except Exception as e:
+        logger.error(f"❌ Error verificando salud de Cosmos DB: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Error verificando Cosmos DB: {str(e)}",
+            "timestamp": datetime.utcnow().isoformat()
+        }

@@ -5,6 +5,7 @@ Endpoints para el procesamiento de documentos IDP
 import json
 import logging
 from typing import Dict, Any
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 
@@ -217,6 +218,98 @@ async def process_document_upload(
         import uuid
         job_id = str(uuid.uuid4())
         
+        # ===== NUEVA INTEGRACIÓN: Guardar en Cosmos DB =====
+        logger.info("🗄️ Iniciando guardado en Azure Cosmos DB...")
+        
+        try:
+            # Crear información del documento para Cosmos DB
+            document_info = {
+                "filename": file.filename,
+                "file_size_mb": len(file_content) / (1024 * 1024),
+                "file_type": file.filename.split(".")[-1] if "." in file.filename else "unknown",
+                "status": "processed",
+                "processing_mode": processing_mode,
+                "correlation_id": f"upload-{job_id}",
+                "job_id": job_id,
+                "created_at": datetime.utcnow().isoformat()
+            }
+            
+            logger.info(f"📄 Guardando información del documento en Cosmos DB...")
+            logger.info(f"   📁 Nombre: {document_info['filename']}")
+            logger.info(f"   📏 Tamaño: {document_info['file_size_mb']:.2f} MB")
+            logger.info(f"   🎯 Modo: {document_info['processing_mode']}")
+            
+            # Guardar documento en Cosmos DB
+            doc_id = await document_service.cosmos_service.save_document(document_info)
+            if doc_id:
+                logger.info(f"✅ Documento guardado exitosamente en Cosmos DB")
+                logger.info(f"   🆔 Document ID: {doc_id}")
+                logger.info(f"   📍 Container: documents")
+                
+                # Crear resultado de extracción para Cosmos DB
+                extraction_data = {
+                    "document_id": doc_id,
+                    "extraction_date": datetime.utcnow().isoformat(),
+                    "processing_time_ms": 2000,  # Estimado
+                    "strategy_used": processing_mode,
+                    "job_id": job_id,
+                    "filename": file.filename,
+                    "fields_extracted": len(fields)
+                }
+                
+                # Intentar parsear la respuesta de OpenAI para extraer campos
+                try:
+                    if isinstance(openai_response, dict):
+                        parsed_response = openai_response
+                    else:
+                        # Limpiar formato markdown si existe
+                        response_text = str(openai_response).strip()
+                        if response_text.startswith('```json'):
+                            response_text = response_text[7:]
+                        if response_text.endswith('```'):
+                            response_text = response_text[:-3]
+                        response_text = response_text.strip()
+                        parsed_response = json.loads(response_text)
+                    
+                    # Agregar campos extraídos
+                    extraction_data["extraction_data"] = [
+                        {
+                            "name": field_name,
+                            "value": str(field_value),
+                            "confidence": 0.9,
+                            "source_strategy": processing_mode
+                        }
+                        for field_name, field_value in parsed_response.items()
+                        if field_value is not None
+                    ]
+                    
+                    logger.info(f"🔍 Guardando resultado de extracción en Cosmos DB...")
+                    logger.info(f"   📊 Campos extraídos: {len(extraction_data['extraction_data'])}")
+                    
+                    ext_id = await document_service.cosmos_service.save_extraction_result(extraction_data)
+                    if ext_id:
+                        logger.info(f"✅ Extracción guardada exitosamente en Cosmos DB")
+                        logger.info(f"   🆔 Extraction ID: {ext_id}")
+                        logger.info(f"   📍 Container: extractions")
+                        logger.info(f"   🔗 Vinculada al documento: {doc_id}")
+                    else:
+                        logger.error(f"❌ ERROR: No se pudo guardar la extracción en Cosmos DB")
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️ No se pudo procesar respuesta de OpenAI para Cosmos DB: {e}")
+                    # Guardar extracción básica
+                    extraction_data["extraction_data"] = []
+                    ext_id = await document_service.cosmos_service.save_extraction_result(extraction_data)
+                    
+            else:
+                logger.error(f"❌ ERROR: No se pudo guardar el documento en Cosmos DB")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Error guardando en Cosmos DB: {e}")
+            logger.warning(f"⚠️ Continuando con el procesamiento normal...")
+        
+        # ===== FIN DE INTEGRACIÓN COSMOS DB =====
+        
         # Crear response con los datos reales extraídos
         from app.models.response import (
             DocumentProcessingResponse, 
@@ -225,7 +318,6 @@ async def process_document_upload(
             ProcessingMode,
             ExtractionField
         )
-        from datetime import datetime
         
         # Crear campos de extracción basados en la respuesta de OpenAI
         extraction_fields = []
@@ -305,6 +397,7 @@ async def process_document_upload(
         )
         
         logger.info(f"✅ Documento procesado exitosamente: {job_id}")
+        logger.info(f"🗄️ Datos guardados en Cosmos DB: Document={doc_id if 'doc_id' in locals() else 'N/A'}, Extraction={ext_id if 'ext_id' in locals() else 'N/A'}")
         return response
         
     except Exception as e:
@@ -451,7 +544,7 @@ async def process_document_upload_custom(
         
         logger.info("🤖 Enviando documento a Azure OpenAI...")
         logger.info(f"📝 Prompt: {full_prompt[:300]}...")
-        logger.info(f"🎯 Campos a extraer: {[field.get('name') for field in fields]}")
+        logger.info(f"🎯 Campos a extraer: {[field.name for field in fields]}")
         
         # Llamar a Azure OpenAI
         from app.utils.azure_clients import AzureOpenAIClient
@@ -480,7 +573,6 @@ async def process_document_upload_custom(
             ProcessingMode,
             ExtractionField
         )
-        from datetime import datetime
         
         # Crear campos de extracción basados en la respuesta de OpenAI
         extraction_fields = []
@@ -729,6 +821,75 @@ async def cancel_document_processing(job_id: str) -> Dict[str, str]:
     except Exception as e:
         logger.error(f"❌ Error cancelando job {job_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Error cancelando el procesamiento")
+
+
+@router.get("/extractions/history/{document_id}")
+async def get_extraction_history(document_id: str):
+    """
+    Obtener historial de extracciones de un documento
+    
+    Args:
+        document_id: ID del documento
+        
+    Returns:
+        Lista de extracciones del documento
+    """
+    logger.info(f"📚 Consultando historial de extracciones para documento: {document_id}")
+    
+    try:
+        from app.services.cosmos_service import CosmosService
+        
+        cosmos_service = CosmosService()
+        extractions = await cosmos_service.get_extraction_history(document_id)
+        
+        return {
+            "document_id": document_id,
+            "extractions_count": len(extractions),
+            "extractions": extractions,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error consultando historial: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error consultando historial: {str(e)}"
+        )
+
+@router.get("/extractions/search")
+async def search_extractions(query: str, field_name: str = None):
+    """
+    Buscar extracciones por texto
+    
+    Args:
+        query: Texto a buscar
+        field_name: Campo específico donde buscar (opcional)
+        
+    Returns:
+        Lista de extracciones que coinciden
+    """
+    logger.info(f"🔍 Buscando extracciones con query: '{query}'")
+    
+    try:
+        from app.services.cosmos_service import CosmosService
+        
+        cosmos_service = CosmosService()
+        results = await cosmos_service.search_extractions(query, field_name)
+        
+        return {
+            "query": query,
+            "field_name": field_name,
+            "results_count": len(results),
+            "results": results,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error en búsqueda: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error en búsqueda: {str(e)}"
+        )
 
 
 def _validate_azure_config() -> bool:
