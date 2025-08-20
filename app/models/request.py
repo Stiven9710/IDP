@@ -41,9 +41,9 @@ class FieldDefinition(BaseModel):
 class DocumentProcessingRequest(BaseModel):
     """Request para procesar un documento con IDP"""
     
-    document_path: HttpUrl = Field(
+    document_path: str = Field(
         ..., 
-        description="URL del documento a procesar (SharePoint, OneDrive, etc.)"
+        description="URL del documento a procesar (SharePoint, OneDrive, etc.) o ruta de archivo local"
     )
     
     processing_mode: Literal["dual_service", "gpt_vision_only", "hybrid_consensus"] = Field(
@@ -69,6 +69,23 @@ class DocumentProcessingRequest(BaseModel):
         default=None, 
         description="Metadatos adicionales del documento"
     )
+    
+    @validator('document_path')
+    def validate_document_path(cls, v):
+        """Validar que document_path sea una URL válida o una ruta de archivo local"""
+        # Si es una ruta de archivo local (comienza con / o contiene caracteres de ruta)
+        if v.startswith('/') or '\\' in v or '/' in v:
+            return v
+        
+        # Si es una URL, validar formato
+        if v.startswith(('http://', 'https://', 'ftp://')):
+            # Validar formato básico de URL
+            if not re.match(r'^https?://[^\s/$.?#].[^\s]*$', v):
+                raise ValueError('Formato de URL inválido')
+            return v
+        
+        # Si no es ninguno de los anteriores, asumir que es una ruta relativa
+        return v
     
     @validator('fields')
     def validate_fields(cls, v):
