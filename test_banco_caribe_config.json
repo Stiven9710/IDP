@@ -1,0 +1,38 @@
+{
+  "document_path": "tests/Documentos/Banco Caribe - Propuesta Perfil Transaccional IB Final.pptx",
+  "processing_mode": "gpt_vision_only",
+  "prompt_general": "Actúa como un analista de propuestas técnicas experto en banca. Analiza esta propuesta de Banco Caribe y extrae información técnica específica de manera precisa. Si un campo no está presente, devuélvelo como null. Para cantidades, extrae solo el valor numérico sin texto adicional. IMPORTANTE: Este es un documento grande, enfócate en extraer la información más relevante de las primeras páginas y secciones principales.",
+  "fields": [
+    {
+      "name": "nombre_propuesta",
+      "type": "string",
+      "description": "El nombre completo de la propuesta o proyecto. Busca en el título principal y encabezados del documento."
+    },
+    {
+      "name": "resumen_propuesta",
+      "type": "string",
+      "description": "Un resumen ejecutivo de la propuesta en máximo 30 palabras. Extrae la esencia del proyecto de manera concisa."
+    },
+    {
+      "name": "tecnologia_implementar",
+      "type": "string",
+      "description": "Las tecnologías principales que se van a implementar. Busca en secciones técnicas, arquitectura o especificaciones del proyecto."
+    },
+    {
+      "name": "requisitos_infraestructura_software",
+      "type": "array",
+      "description": "Lista de requisitos de infraestructura de software. Cada elemento debe tener 'descripcion' y 'cantidad'. Busca en secciones de infraestructura, requisitos técnicos o especificaciones del sistema."
+    },
+    {
+      "name": "total_horas",
+      "type": "number",
+      "description": "El total de horas estimadas para el proyecto. Busca en cronogramas, estimaciones de tiempo o resúmenes ejecutivos."
+    }
+  ],
+  "metadata": {
+    "test_type": "banco_caribe_propuesta",
+    "document_type": "presentation",
+    "business_domain": "banking",
+    "created_by": "test_banco_caribe.py"
+  }
+}

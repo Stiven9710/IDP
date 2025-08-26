@@ -82,3 +82,75 @@ async def cosmos_health_check():
             "message": f"Error verificando Cosmos DB: {str(e)}",
             "timestamp": datetime.utcnow().isoformat()
         }
+
+
+@router.get("/blob-storage")
+async def blob_storage_health():
+    """Verificar salud del servicio de Blob Storage"""
+    try:
+        from app.services.blob_storage_service import BlobStorageService
+        
+        blob_service = BlobStorageService()
+        health_status = await blob_service.health_check()
+        
+        return health_status
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "message": f"Error verificando Blob Storage: {str(e)}",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@router.get("/queue-storage")
+async def queue_storage_health():
+    """Verificar salud del servicio de Queue Storage"""
+    try:
+        from app.services.queue_storage_service import QueueStorageService
+        
+        queue_service = QueueStorageService()
+        health_status = await queue_service.health_check()
+        
+        return health_status
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "message": f"Error verificando Queue Storage: {str(e)}",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@router.get("/storage")
+async def storage_health():
+    """Verificar salud de todos los servicios de Storage"""
+    try:
+        from app.services.blob_storage_service import BlobStorageService
+        from app.services.queue_storage_service import QueueStorageService
+        
+        # Verificar Blob Storage
+        blob_service = BlobStorageService()
+        blob_health = await blob_service.health_check()
+        
+        # Verificar Queue Storage
+        queue_service = QueueStorageService()
+        queue_health = await queue_service.health_check()
+        
+        # Determinar estado general
+        overall_status = "healthy"
+        if blob_health.get("status") != "healthy" or queue_health.get("status") != "healthy":
+            overall_status = "unhealthy"
+        
+        return {
+            "status": overall_status,
+            "timestamp": datetime.utcnow().isoformat(),
+            "services": {
+                "blob_storage": blob_health,
+                "queue_storage": queue_health
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "message": f"Error verificando servicios de Storage: {str(e)}",
+            "timestamp": datetime.utcnow().isoformat()
+        }
