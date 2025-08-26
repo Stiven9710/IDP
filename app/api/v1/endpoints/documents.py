@@ -157,6 +157,107 @@ async def process_document_upload(
             ]
             logger.info(f"📋 Usando configuración por defecto: {len(fields)} campos")
         
+        # Verificar si el documento es muy grande para procesamiento síncrono
+        file_size_mb = len(file_content) / (1024 * 1024)
+        logger.info(f"📏 Tamaño del archivo: {file_size_mb:.2f} MB")
+        
+        # Si el documento es muy grande (>10MB), usar DocumentService para procesamiento asíncrono
+        if file_size_mb > 10.0:
+            logger.info("🔄 DOCUMENTO GRANDE DETECTADO - ACTIVANDO PROCESAMIENTO ASÍNCRONO")
+            logger.info(f"   📏 Tamaño: {file_size_mb:.2f} MB (> 10 MB)")
+            logger.info(f"   📄 Filename: {file.filename}")
+            logger.info(f"   🎯 Processing Mode: {processing_mode}")
+            logger.info(f"   🔍 Fields Count: {len(fields) if isinstance(fields, list) else len(fields_config) if isinstance(fields_config, dict) else 'N/A'}")
+            logger.info(f"   📝 Prompt Length: {len(prompt_general) if prompt_general else 0} chars")
+            logger.info(f"   " + "="*80)
+            
+            # Crear request para DocumentService
+            from app.models.request import DocumentProcessingRequest
+            from app.services.document_service import DocumentService
+            
+            # Crear campos FieldDefinition
+            from app.models.request import FieldDefinition
+            field_definitions = []
+            
+            if isinstance(fields_config, dict):
+                # Si fields_config es un diccionario, usarlo directamente
+                field_definitions = [
+                    FieldDefinition(
+                        name=field.get('name', ''),
+                        type=field.get('type', 'string'),
+                        description=field.get('description', '')
+                    )
+                    for field in fields_config
+                ]
+            else:
+                # Si no, usar los campos ya procesados
+                field_definitions = fields
+            
+            # Guardar archivo temporalmente para DocumentService
+            import tempfile
+            import os
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}") as temp_file:
+                temp_file.write(file_content)
+                temp_path = temp_file.name
+                logger.info(f"📁 Archivo temporal creado: {temp_path}")
+            
+            # Crear request para DocumentService con la ruta temporal real
+            doc_request = DocumentProcessingRequest(
+                document_path=temp_path,  # Ruta temporal real
+                processing_mode=processing_mode,
+                prompt_general=prompt_general,
+                fields=field_definitions,
+                metadata={
+                    "source": "file_upload",
+                    "filename": file.filename,
+                    "file_size_mb": file_size_mb,
+                    "upload_timestamp": datetime.utcnow().isoformat()
+                }
+            )
+            
+            # Usar DocumentService para procesamiento asíncrono
+            logger.info(f"🚀 INICIANDO DOCUMENTSERVICE.PROCESS_DOCUMENT")
+            logger.info(f"   📁 Temp Path: {temp_path}")
+            logger.info(f"   📄 Filename: {file.filename}")
+            logger.info(f"   🎯 Processing Mode: {processing_mode}")
+            logger.info(f"   🔍 Fields: {len(field_definitions)}")
+            logger.info(f"   📝 Prompt: {len(prompt_general) if prompt_general else 0} chars")
+            
+            doc_service = DocumentService()
+            
+            try:
+                logger.info(f"   🔄 Llamando a doc_service.process_document...")
+                response = await doc_service.process_document(doc_request)
+                logger.info(f"   ✅ DocumentService.process_document completado exitosamente")
+                logger.info(f"   🆔 Job ID: {response.job_id}")
+                logger.info(f"   📊 Response Status: {response.processing_summary.processing_status}")
+                logger.info(f"   📝 Message: {response.message}")
+                
+                # Limpiar archivo temporal
+                os.unlink(temp_path)
+                logger.info(f"   🗑️ Archivo temporal eliminado: {temp_path}")
+                
+                logger.info(f"   " + "="*80)
+                logger.info(f"🎉 PROCESAMIENTO ASÍNCRONO INICIADO EXITOSAMENTE")
+                logger.info(f"   🆔 Job ID: {response.job_id}")
+                logger.info(f"   📄 Documento: {file.filename}")
+                logger.info(f"   📏 Tamaño: {file_size_mb:.2f} MB")
+                logger.info(f"   🎯 Modo: {processing_mode}")
+                logger.info(f"   " + "="*80)
+                
+                return response
+                
+            except Exception as e:
+                logger.error(f"❌ Error en DocumentService: {str(e)}")
+                # Limpiar archivo temporal en caso de error
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                raise HTTPException(status_code=500, detail=f"Error en procesamiento asíncrono: {str(e)}")
+        
+        # Si el documento es pequeño, continuar con procesamiento síncrono original
+        logger.info("⚡ Documento pequeño, usando procesamiento síncrono directo")
+        
         # Generar descripción de campos dinámicamente
         fields_description = "Extrae los siguientes campos del documento:\n\n"
         for i, field in enumerate(fields, 1):

@@ -34,11 +34,25 @@ class Settings(BaseSettings):
     azure_cosmos_container_extractions: str = "extractions"
     azure_cosmos_container_jobs: str = "processing_jobs"
     
+    # Azure Storage (Blob y Queue)
+    azure_storage_connection_string: Optional[str] = None
+    azure_storage_account_name: Optional[str] = None
+    azure_storage_account_key: Optional[str] = None
+    azure_storage_queue_name: str = "document-processing"
+    
+    # Configuración específica de Blob Storage
+    azure_blob_retry_delay_seconds: int = 5  # Retraso optimizado antes de descargar
+    azure_blob_max_retries: int = 3  # Máximo de reintentos
+    azure_blob_retry_backoff_factor: float = 1.5  # Factor de crecimiento optimizado
+    
     # Configuración del sistema
     sync_processing_threshold_mb: int = 10
     max_processing_time_seconds: int = 300
     max_file_size_mb: int = 50
 
+    # Configuración de CORS
+    cors_origins: List[str] = ["*"]
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

@@ -56,4 +56,5 @@ class StorageService:
         """Subir documento a Blob Storage"""
         logger.info(f"📦 Subiendo documento a Blob Storage para job: {job_id}")
         # TODO: Implementar conexión real a Blob Storage
-        return f"blob://docs-para-procesar/{job_id}/document.pdf"
+        # Usar el contenedor correcto: 'documents' en lugar de 'docs-para-procesar'
+        return f"blob://documents/{job_id}/document"

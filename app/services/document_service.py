@@ -22,8 +22,9 @@ from app.models.response import (
 )
 from app.services.ai_orchestrator import AIOrchestratorService
 from app.services.storage_service import StorageService
-from app.services.queue_service import QueueService
+from app.services.queue_storage_service import QueueStorageService
 from app.services.cosmos_service import CosmosService
+from app.services.blob_storage_service import BlobStorageService
 from app.utils.helpers import get_file_size_from_url, is_supported_format
 
 # Configurar logging
@@ -37,8 +38,9 @@ class DocumentService:
         """Inicializar el servicio de documentos"""
         self.ai_orchestrator = AIOrchestratorService()
         self.storage_service = StorageService()
-        self.queue_service = QueueService()
+        self.queue_service = QueueStorageService()
         self.cosmos_service = CosmosService()
+        self.blob_storage_service = BlobStorageService()
         
         # Umbral para procesamiento asíncrono (10MB según requerimiento)
         self.async_threshold_mb = 10.0
@@ -76,13 +78,24 @@ class DocumentService:
             logger.info(f"📏 Tamaño del documento: {file_size_mb:.2f} MB")
             
             # Decidir si procesar de forma síncrona o asíncrona
+            logger.info(f"🔍 DECISIÓN DE PROCESAMIENTO:")
+            logger.info(f"   📏 Tamaño del documento: {file_size_mb:.2f} MB")
+            logger.info(f"   🎯 Umbral asíncrono: {self.async_threshold_mb} MB")
+            logger.info(f"   📊 Comparación: {file_size_mb:.2f} MB {'<=' if file_size_mb <= self.async_threshold_mb else '>'} {self.async_threshold_mb} MB")
+            
             if file_size_mb <= self.async_threshold_mb:
-                logger.info("⚡ Procesamiento SÍNCRONO (documento pequeño)")
+                logger.info("⚡ PROCESAMIENTO SÍNCRONO SELECCIONADO (documento pequeño)")
+                logger.info(f"   📏 Tamaño: {file_size_mb:.2f} MB <= {self.async_threshold_mb} MB")
+                logger.info(f"   🎯 Método: _process_synchronously")
+                logger.info(f"   " + "="*80)
                 return await self._process_synchronously(
                     job_id, request, file_size_mb, start_time
                 )
             else:
-                logger.info("🔄 Procesamiento ASÍNCRONO (documento grande)")
+                logger.info("🔄 PROCESAMIENTO ASÍNCRONO SELECCIONADO (documento grande)")
+                logger.info(f"   📏 Tamaño: {file_size_mb:.2f} MB > {self.async_threshold_mb} MB")
+                logger.info(f"   🎯 Método: _process_asynchronously")
+                logger.info(f"   " + "="*80)
                 return await self._process_asynchronously(
                     job_id, request, file_size_mb, start_time
                 )
@@ -255,11 +268,33 @@ class DocumentService:
         
         try:
             # Guardar documento en Blob Storage (Capa Bronce)
-            blob_path = await self.storage_service.upload_document_to_blob(
-                document_url=str(request.document_path),
-                job_id=job_id
-            )
-            logger.info(f"📦 Documento guardado en Blob Storage: {blob_path}")
+            # Leer el archivo y subirlo usando BlobStorageService
+            import os
+            if os.path.exists(str(request.document_path)):
+                with open(str(request.document_path), 'rb') as file:
+                    file_content = file.read()
+                    filename = os.path.basename(str(request.document_path))
+                    
+                    # Limpiar metadatos para Azure (convertir todos los valores a string)
+                    clean_metadata = {}
+                    if request.metadata:
+                        for key, value in request.metadata.items():
+                            if value is not None:
+                                clean_metadata[key] = str(value)
+                    
+                    blob_path = await self.blob_storage_service.upload_document(
+                        file_content=file_content,
+                        filename=filename,
+                        job_id=job_id,
+                        metadata=clean_metadata
+                    )
+                    
+                    if not blob_path:
+                        raise Exception("Error subiendo documento a Blob Storage")
+                        
+                    logger.info(f"📦 Documento guardado en Blob Storage: {blob_path}")
+            else:
+                raise Exception(f"Archivo no encontrado: {request.document_path}")
             
             # Crear mensaje en la cola
             queue_message = {
@@ -274,9 +309,9 @@ class DocumentService:
                 "created_at": datetime.utcnow().isoformat()
             }
             
-            await self.queue_service.enqueue_message(
-                queue_name=settings.azure_storage_queue_name,
-                message=queue_message
+            await self.queue_service.send_message(
+                message_data=queue_message,
+                queue_name=settings.azure_storage_queue_name
             )
             logger.info(f"📬 Mensaje encolado para job {job_id}")
             
@@ -297,9 +332,56 @@ class DocumentService:
                 correlation_id=request.metadata.get("correlation_id") if request.metadata else None
             )
             
-            # Guardar estado inicial en Cosmos DB
-            await self.storage_service.save_job_status(job_id, ProcessingStatus.PENDING)
-            logger.info(f"💾 Estado inicial guardado en Cosmos DB para job {job_id}")
+            # ===== INICIO: GUARDADO EN COSMOS DB =====
+            logger.info(f"🗄️ GUARDANDO JOB ASÍNCRONO EN COSMOS DB")
+            
+            # Crear información del job para Cosmos DB
+            job_info = {
+                "job_id": job_id,
+                "document_name": request.metadata.get("filename", "unknown") if request.metadata else "unknown",
+                "processing_mode": request.processing_mode,
+                "status": "pending",
+                "created_at": datetime.utcnow().isoformat(),
+                "file_size_mb": file_size_mb,
+                "blob_path": blob_path,
+                "fields_count": len(request.fields),
+                "prompt_length": len(request.prompt_general) if request.prompt_general else 0
+            }
+            
+            logger.info(f"   📋 Información del job preparada:")
+            logger.info(f"      🆔 Job ID: {job_id}")
+            logger.info(f"      📄 Documento: {job_info['document_name']}")
+            logger.info(f"      🎯 Modo: {request.processing_mode}")
+            logger.info(f"      📏 Tamaño: {file_size_mb:.2f} MB")
+            logger.info(f"      🔗 Blob Path: {blob_path}")
+            logger.info(f"      🔍 Campos: {len(request.fields)}")
+            
+            # Crear job en Cosmos DB
+            logger.info(f"   🗄️ Creando job en Cosmos DB...")
+            try:
+                job_db_id = await self.cosmos_service.create_processing_job(job_info)
+                if job_db_id:
+                    logger.info(f"   ✅ Job creado exitosamente en Cosmos DB")
+                    logger.info(f"      🆔 Job DB ID: {job_db_id}")
+                    logger.info(f"      📍 Container: processing_jobs")
+                else:
+                    logger.error(f"   ❌ Error: create_processing_job retornó None")
+                    raise Exception("Error creando job en Cosmos DB")
+            except Exception as cosmos_error:
+                logger.error(f"   ❌ Error creando job en Cosmos DB: {str(cosmos_error)}")
+                logger.error(f"   🔍 Detalles del error: {type(cosmos_error).__name__}")
+                raise Exception(f"Error creando job en Cosmos DB: {str(cosmos_error)}")
+            
+            # Guardar estado inicial en Cosmos DB (método alternativo)
+            try:
+                await self.storage_service.save_job_status(job_id, ProcessingStatus.PENDING)
+                logger.info(f"   💾 Estado inicial guardado en Cosmos DB para job {job_id}")
+            except Exception as status_error:
+                logger.warning(f"   ⚠️ No se pudo guardar estado inicial: {str(status_error)}")
+                logger.warning(f"   🔍 Continuando sin guardar estado inicial")
+            
+            logger.info(f"   " + "="*80)
+            # ===== FIN: GUARDADO EN COSMOS DB =====
             
             logger.info(f"✅ Procesamiento asíncrono iniciado para job {job_id}")
             return response
@@ -332,14 +414,22 @@ class DocumentService:
             logger.error(f"❌ Error consultando resultado del job {job_id}: {str(e)}")
             raise
     
-    def _validate_document_format(self, document_url: str) -> bool:
+    def _validate_document_format(self, document_path: str) -> bool:
         """Validar si el formato del documento es soportado"""
-        parsed_url = urlparse(document_url)
-        file_path = parsed_url.path.lower()
+        # Si es una ruta local (no URL), extraer solo el nombre del archivo
+        if document_path.startswith('temp://') or '/' in document_path or '\\' in document_path:
+            # Es una ruta local, extraer solo el nombre del archivo
+            import os
+            filename = os.path.basename(document_path)
+            file_path = filename.lower()
+        else:
+            # Es una URL, parsear normalmente
+            parsed_url = urlparse(document_path)
+            file_path = parsed_url.path.lower()
         
         supported_formats = [
             '.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp',
-            '.docx', '.doc', '.txt', '.rtf'
+            '.docx', '.doc', '.txt', '.rtf', '.pptx', '.ppt'
         ]
         
         is_supported = any(file_path.endswith(fmt) for fmt in supported_formats)
@@ -347,12 +437,25 @@ class DocumentService:
         
         return is_supported
     
-    async def _get_document_size(self, document_url: str) -> float:
-        """Obtener el tamaño del documento desde la URL"""
+    async def _get_document_size(self, document_path: str) -> float:
+        """Obtener el tamaño del documento desde la URL o archivo local"""
         try:
-            file_size_mb = await get_file_size_from_url(document_url)
-            logger.info(f"📏 Tamaño del documento obtenido: {file_size_mb:.2f} MB")
-            return file_size_mb
+            # Si es una ruta local, obtener tamaño del archivo
+            if document_path.startswith('temp://') or '/' in document_path or '\\' in document_path:
+                import os
+                if os.path.exists(document_path):
+                    file_size_bytes = os.path.getsize(document_path)
+                    file_size_mb = file_size_bytes / (1024 * 1024)
+                    logger.info(f"📏 Tamaño del archivo local: {file_size_mb:.2f} MB")
+                    return file_size_mb
+                else:
+                    logger.warning(f"⚠️ Archivo local no encontrado: {document_path}")
+                    return 5.0
+            else:
+                # Es una URL, usar la función original
+                file_size_mb = await get_file_size_from_url(document_path)
+                logger.info(f"📏 Tamaño del documento obtenido: {file_size_mb:.2f} MB")
+                return file_size_mb
         except Exception as e:
             logger.warning(f"⚠️ No se pudo obtener el tamaño del documento: {str(e)}")
             # Valor por defecto para continuar el procesamiento

@@ -349,7 +349,7 @@ class CosmosService:
             results = list(self.jobs_container.query_items(
                 query=query,
                 parameters=parameters,
-                enable_cross_partition_query=False
+                enable_cross_partition_query=True
             ))
             
             if not results:
@@ -402,7 +402,7 @@ class CosmosService:
             results = list(self.jobs_container.query_items(
                 query=query,
                 parameters=parameters,
-                enable_cross_partition_query=False
+                enable_cross_partition_query=True
             ))
             
             if results:
@@ -497,3 +497,152 @@ class CosmosService:
                 'message': f'Error en Cosmos DB: {str(e)}',
                 'timestamp': datetime.utcnow().isoformat()
             }
+    
+    async def get_processing_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtener un trabajo de procesamiento específico
+        
+        Args:
+            job_id: ID del trabajo
+            
+        Returns:
+            Datos del trabajo o None si no existe
+        """
+        if not self._is_available():
+            logger.error("❌ Cosmos DB no está disponible")
+            return None
+            
+        try:
+            # Buscar trabajo por job_id
+            query = "SELECT * FROM c WHERE c.job_id = @job_id"
+            parameters = [{"name": "@job_id", "value": job_id}]
+            
+            results = list(self.jobs_container.query_items(
+                query=query,
+                parameters=parameters,
+                enable_cross_partition_query=True
+            ))
+            
+            if results:
+                logger.info(f"✅ Trabajo de procesamiento obtenido: {job_id}")
+                return results[0]
+            else:
+                logger.info(f"📄 Trabajo de procesamiento no encontrado: {job_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error obteniendo trabajo de procesamiento: {str(e)}")
+            return None
+    
+    async def list_processing_jobs(self) -> List[Dict[str, Any]]:
+        """
+        Listar todos los trabajos de procesamiento
+        
+        Returns:
+            Lista de trabajos de procesamiento
+        """
+        if not self._is_available():
+            logger.error("❌ Cosmos DB no está disponible")
+            return []
+            
+        try:
+            # Obtener todos los trabajos ordenados por fecha de creación
+            query = "SELECT * FROM c ORDER BY c.created_at DESC"
+            
+            results = list(self.jobs_container.query_items(
+                query=query,
+                parameters=[],
+                enable_cross_partition_query=True
+            ))
+            
+            logger.info(f"✅ Trabajos de procesamiento listados: {len(results)} trabajos")
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ Error listando trabajos de procesamiento: {str(e)}")
+            return []
+    
+    async def get_extraction_by_job_id(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtener resultado de extracción por job_id
+        
+        Args:
+            job_id: ID del trabajo
+            
+        Returns:
+            Resultado de extracción o None si no existe
+        """
+        if not self._is_available():
+            logger.error("❌ Cosmos DB no está disponible")
+            return None
+            
+        try:
+            # Buscar extracción por job_id
+            query = "SELECT * FROM c WHERE c.job_id = @job_id"
+            parameters = [{"name": "@job_id", "value": job_id}]
+            
+            results = list(self.extractions_container.query_items(
+                query=query,
+                parameters=parameters,
+                enable_cross_partition_query=True
+            ))
+            
+            if results:
+                logger.info(f"✅ Resultado de extracción obtenido para job: {job_id}")
+                return results[0]
+            else:
+                logger.info(f"📄 Resultado de extracción no encontrado para job: {job_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error obteniendo resultado de extracción: {str(e)}")
+            return None
+    
+    async def update_job_status(self, job_id: str, status: str, update_data: Dict[str, Any] = None) -> bool:
+        """
+        Actualizar el estado de un job de procesamiento
+        
+        Args:
+            job_id: ID del trabajo
+            status: Nuevo estado
+            update_data: Datos adicionales para actualizar
+            
+        Returns:
+            True si se actualizó correctamente, False en caso contrario
+        """
+        if not self._is_available():
+            logger.error("❌ Cosmos DB no está disponible")
+            return False
+            
+        try:
+            # Buscar el job existente
+            existing_job = await self.get_processing_job(job_id)
+            
+            if existing_job:
+                # Actualizar job existente
+                item_id = existing_job.get('id')
+                
+                # Preparar datos de actualización
+                update_fields = {
+                    "status": status,
+                    "updated_at": datetime.utcnow().isoformat()
+                }
+                
+                if update_data:
+                    update_fields.update(update_data)
+                
+                # Actualizar en Cosmos DB
+                self.jobs_container.replace_item(
+                    item=item_id,
+                    body={**existing_job, **update_fields}
+                )
+                
+                logger.info(f"✅ Estado del job actualizado: {job_id} -> {status}")
+                return True
+            else:
+                logger.warning(f"⚠️ Job no encontrado para actualizar: {job_id}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error actualizando estado del job {job_id}: {str(e)}")
+            return False

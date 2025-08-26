@@ -2,6 +2,8 @@
 IDP Expert System - Aplicación principal FastAPI
 """
 
+import asyncio
+import threading
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -9,6 +11,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings, get_cors_origins
 from app.api.v1.router import api_router
+from app.services.background_worker import BackgroundWorker
 
 
 @asynccontextmanager
@@ -16,9 +19,36 @@ async def lifespan(app: FastAPI):
     """Gestión del ciclo de vida de la aplicación"""
     # Startup
     print("🚀 Iniciando IDP Expert System...")
+    
+    # Iniciar Background Worker en un hilo separado
+    print("🔄 Iniciando Background Worker...")
+    background_worker = BackgroundWorker()
+    
+    def run_worker():
+        """Ejecutar el worker en un hilo separado"""
+        try:
+            asyncio.run(background_worker.start())
+        except Exception as e:
+            print(f"❌ Error en Background Worker: {e}")
+    
+    worker_thread = threading.Thread(target=run_worker, daemon=True)
+    worker_thread.start()
+    print("✅ Background Worker iniciado en segundo plano")
+    
     yield
+    
     # Shutdown
     print("🛑 Cerrando IDP Expert System...")
+    print("🔄 Deteniendo Background Worker...")
+    try:
+        # Crear un nuevo event loop para detener el worker
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(background_worker.stop())
+        loop.close()
+        print("✅ Background Worker detenido")
+    except Exception as e:
+        print(f"❌ Error deteniendo Background Worker: {e}")
 
 
 # Crear instancia de FastAPI

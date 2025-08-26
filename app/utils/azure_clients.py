@@ -33,6 +33,43 @@ class AzureOpenAIClient:
         else:
             logger.info("🤖 Azure OpenAI Client inicializado correctamente")
     
+    def _clean_gpt_response(self, content: str) -> str:
+        """Limpiar respuesta de GPT-4o removiendo backticks de markdown y formato extra"""
+        logger.info("🧹 Limpiando respuesta de GPT-4o")
+        
+        # Remover backticks de markdown (```json, ```)
+        cleaned = content.strip()
+        
+        # Buscar y extraer solo el contenido JSON
+        if "```json" in cleaned:
+            # Extraer contenido entre ```json y ```
+            start_marker = "```json"
+            end_marker = "```"
+            
+            start_idx = cleaned.find(start_marker)
+            if start_idx != -1:
+                start_idx += len(start_marker)
+                end_idx = cleaned.find(end_marker, start_idx)
+                
+                if end_idx != -1:
+                    json_content = cleaned[start_idx:end_idx].strip()
+                    logger.info("✅ Contenido JSON extraído de backticks")
+                    return json_content
+        
+        # Si no hay backticks, intentar limpiar espacios y caracteres extra
+        cleaned = cleaned.strip()
+        
+        # Remover líneas vacías al inicio y final
+        lines = cleaned.split('\n')
+        while lines and lines[0].strip() == '':
+            lines.pop(0)
+        while lines and lines[-1].strip() == '':
+            lines.pop()
+        
+        cleaned = '\n'.join(lines)
+        logger.info("✅ Respuesta limpiada (sin backticks)")
+        return cleaned
+    
     async def process_document_vision(
         self,
         document_b64: str,
@@ -197,13 +234,17 @@ class AzureOpenAIClient:
             content = result["choices"][0]["message"]["content"]
             logger.info(f"📝 Respuesta de GPT-4o: {content[:200]}...")
             
-            # Parsear JSON de la respuesta
+            # Limpiar y parsear JSON de la respuesta
             try:
-                extracted_data = json.loads(content)
+                # Limpiar la respuesta de GPT-4o (remover backticks de markdown)
+                cleaned_content = self._clean_gpt_response(content)
+                extracted_data = json.loads(cleaned_content)
                 logger.info("✅ Datos extraídos exitosamente de GPT-4o")
                 return extracted_data
             except json.JSONDecodeError as e:
                 logger.error(f"❌ Error parseando JSON de GPT-4o: {str(e)}")
+                logger.warning(f"⚠️ Contenido original: {content[:200]}...")
+                logger.warning(f"⚠️ Contenido limpiado: {cleaned_content[:200]}...")
                 return self._extract_fields_from_text(content, fields)
     
     def _combine_image_extractions(
