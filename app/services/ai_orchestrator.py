@@ -29,7 +29,7 @@ class ExtractionResult:
     strategy_used: str
 
 
-class AIOrchestratorService:
+class AIOrchestrator:
     """Servicio orquestador de IA para procesamiento de documentos"""
     
     def __init__(self):
@@ -37,7 +37,7 @@ class AIOrchestratorService:
         self.openai_client = AzureOpenAIClient()
         self.doc_intelligence_client = CustomDocumentIntelligenceClient()
         
-        logger.info("🤖 AIOrchestratorService inicializado correctamente")
+        logger.info("🤖 AIOrchestrator inicializado correctamente")
     
     async def process_document(
         self,
@@ -156,11 +156,16 @@ class AIOrchestratorService:
         fields: List[FieldDefinition],
         prompt_general: str
     ) -> ExtractionResult:
-        """Procesar documento usando solo Azure OpenAI GPT-4 Vision"""
-        logger.info("👁️ Iniciando procesamiento GPT VISION ONLY")
+        """Procesar documento usando solo Azure OpenAI GPT-4 Vision con estrategia cascada"""
+        logger.info("👁️ Iniciando procesamiento GPT VISION ONLY con estrategia cascada")
+        logger.info(f"   📊 Tamaño del documento: {len(document_content)} bytes")
+        logger.info(f"   🔍 Primeros bytes: {document_content[:10]}")
         
         try:
-            result = await self._process_with_openai(document_content, fields, prompt_general)
+            # Usar procesamiento cascada para mantener contexto entre páginas
+            logger.info("   🔄 Llamando a _process_with_openai_cascade...")
+            result = await self._process_with_openai_cascade(document_content, fields, prompt_general)
+            logger.info("   ✅ _process_with_openai_cascade completado exitosamente")
             
             extraction_data = []
             for field in fields:
@@ -170,21 +175,21 @@ class AIOrchestratorService:
                     value=field_value,
                     confidence=0.9,  # Alta confianza para GPT-4 Vision
                     review_required=False,
-                    source_strategy="gpt_vision_only",
+                    source_strategy="gpt_vision_only_cascade",
                     extraction_time_ms=0
                 )
                 extraction_data.append(field_result)
             
             return ExtractionResult(
                 extraction_data=extraction_data,
-                pages_processed=1,
+                pages_processed=result.get('pages_processed', 1),
                 review_flags=[],
                 processing_time_ms=0,
-                strategy_used="gpt_vision_only"
+                strategy_used="gpt_vision_only_cascade"
             )
             
         except Exception as e:
-            logger.error(f"❌ Error en procesamiento GPT Vision: {str(e)}")
+            logger.error(f"❌ Error en procesamiento GPT Vision Cascada: {str(e)}")
             raise
     
     async def _process_hybrid_consensus(
@@ -289,6 +294,226 @@ class AIOrchestratorService:
         except Exception as e:
             logger.error(f"❌ Error en procesamiento OpenAI: {str(e)}")
             raise
+    
+    async def _process_with_openai_cascade(
+        self,
+        document_content: bytes,
+        fields: List[FieldDefinition],
+        prompt_general: str
+    ) -> Dict[str, Any]:
+        """Procesar documento con Azure OpenAI GPT-4 Vision usando estrategia cascada para mantener contexto"""
+        logger.info("🔄 Iniciando procesamiento GPT-4 Vision con estrategia cascada")
+        logger.info(f"   📊 Tamaño del documento: {len(document_content)} bytes")
+        logger.info(f"   🔍 Primeros bytes: {document_content[:10]}")
+        
+        try:
+            # Importar convertidores inteligentes
+            logger.info("   📦 Importando convertidores...")
+            from app.utils.document_converter import DocumentConverter
+            from app.utils.office_converter import OfficeConverter
+            logger.info("   ✅ Convertidores importados correctamente")
+            
+            # Determinar tipo de archivo y usar conversor apropiado
+            logger.info("🔍 Determinando tipo de archivo para conversión...")
+            
+            # Intentar detectar tipo por contenido (método simple)
+            if document_content.startswith(b'%PDF'):
+                # Es un PDF
+                logger.info("📄 Archivo detectado como PDF, usando DocumentConverter")
+                converter = DocumentConverter()
+                images = converter.pdf_to_images_png(document_content)
+            elif document_content.startswith(b'PK'):
+                # Es un archivo Office (ZIP)
+                logger.info("📊 Archivo detectado como Office (ZIP), usando OfficeConverter")
+                converter = OfficeConverter()
+                images = converter.office_to_images_png(document_content)
+            else:
+                # Intentar con OfficeConverter por defecto (más versátil)
+                logger.info("🔍 Tipo no detectado, intentando con OfficeConverter")
+                logger.info(f"   🔍 Bytes de inicio: {document_content[:20]}")
+                converter = OfficeConverter()
+                images = converter.office_to_images_png(document_content)
+            
+            logger.info(f"🔄 Convertidas {len(images)} páginas del documento a imágenes")
+            
+            if len(images) <= 5:
+                # Una sola petición para documentos pequeños
+                logger.info(f"📄 Documento pequeño ({len(images)} páginas), procesando en una petición")
+                return await self._process_single_batch(images, fields, prompt_general)
+            else:
+                # Procesamiento cascada para documentos grandes
+                logger.info(f"📚 Documento grande ({len(images)} páginas), procesando en cascada")
+                return await self._process_cascade_batches(images, fields, prompt_general)
+                
+        except Exception as e:
+            logger.error(f"❌ Error en procesamiento cascada: {str(e)}")
+            raise
+    
+    async def _process_single_batch(
+        self,
+        images: List[str],
+        fields: List[FieldDefinition],
+        prompt_general: str
+    ) -> Dict[str, Any]:
+        """Procesar un lote de imágenes en una sola petición"""
+        logger.info(f"📄 Procesando {len(images)} imágenes en una sola petición")
+        
+        try:
+            # Verificar si las imágenes ya están en base64 o son rutas de archivo
+            logger.info(f"   🔍 Verificando formato de las imágenes...")
+            logger.info(f"   📊 Primera imagen (primeros 50 chars): {images[0][:50] if images else 'No hay imágenes'}")
+            
+            # Las imágenes del OfficeConverter ya están en base64
+            if images and images[0].startswith('data:image') or len(images[0]) > 1000:
+                # Ya están en base64, usar directamente
+                logger.info(f"   ✅ Imágenes ya están en base64, usando directamente")
+                images_b64 = images
+            else:
+                # Convertir a base64 si son rutas de archivo
+                logger.info(f"   🔄 Convirtiendo rutas de archivo a base64...")
+                images_b64 = []
+                for img_path in images:
+                    try:
+                        with open(img_path, 'rb') as img_file:
+                            img_data = img_file.read()
+                            img_b64 = base64.b64encode(img_data).decode('utf-8')
+                            images_b64.append(img_b64)
+                    except Exception as img_error:
+                        logger.warning(f"   ⚠️ Error convirtiendo imagen {img_path}: {str(img_error)}")
+                        continue
+            
+            if not images_b64:
+                raise Exception("No se pudieron procesar las imágenes")
+            
+            logger.info(f"   ✅ {len(images_b64)} imágenes preparadas para GPT-4o")
+            
+            # Construir prompt específico
+            fields_description = self._build_fields_description(fields)
+            full_prompt = f"{prompt_general}\n\n{fields_description}"
+            
+            # Llamar a OpenAI con TODAS las imágenes del lote
+            logger.info(f"   🖼️ Enviando {len(images_b64)} imágenes a GPT-4o para análisis conjunto")
+            
+            # Crear prompt mejorado para múltiples páginas
+            enhanced_prompt = f"""
+            {full_prompt}
+            
+            📄 INSTRUCCIONES ESPECIALES PARA MÚLTIPLES PÁGINAS:
+            - Estás analizando {len(images_b64)} páginas del mismo documento
+            - Cada página puede contener información diferente
+            - Combina y consolida la información de TODAS las páginas
+            - Si un campo aparece en múltiples páginas, usa la información más completa
+            - NO devuelvas null a menos que el campo no aparezca en NINGUNA página
+            - Busca información complementaria entre las páginas
+            - Analiza cada imagen secuencialmente para construir una respuesta completa
+            """
+            
+            # Enviar TODAS las imágenes del lote a GPT-4o
+            response = await self.openai_client.process_multiple_images_vision(
+                images_b64=images_b64,
+                prompt=enhanced_prompt,
+                fields=fields
+            )
+            
+            # Agregar información de que se analizaron múltiples páginas
+            response['multi_page_analysis'] = True
+            response['total_pages_analyzed'] = len(images_b64)
+            
+            # Agregar información de páginas procesadas
+            response['pages_processed'] = len(images)
+            
+            logger.info(f"✅ Procesamiento de lote único completado: {len(images)} páginas")
+            return response
+            
+        except Exception as e:
+            logger.error(f"❌ Error en procesamiento de lote único: {str(e)}")
+            raise
+    
+    async def _process_cascade_batches(
+        self,
+        images: List[str],
+        fields: List[FieldDefinition],
+        prompt_general: str
+    ) -> Dict[str, Any]:
+        """Procesar imágenes en lotes usando estrategia cascada para mantener contexto"""
+        logger.info(f"🔄 Iniciando procesamiento cascada para {len(images)} imágenes")
+        
+        try:
+            # Procesar primer lote (base)
+            logger.info("🔄 Procesando lote base (páginas 1-5)")
+            base_extraction = await self._process_single_batch(images[0:5], fields, prompt_general)
+            
+            # Procesar lotes subsiguientes con referencia al anterior
+            for batch_idx in range(5, len(images), 5):
+                batch = images[batch_idx:batch_idx + 5]
+                current_pages = f"{batch_idx+1}-{min(batch_idx+5, len(images))}"
+                
+                logger.info(f"🔄 Procesando lote {batch_idx//5 + 2} (páginas {current_pages})")
+                
+                # Prompt que referencia la extracción anterior
+                reference_prompt = f"""
+                {prompt_general}
+                
+                🔄 INFORMACIÓN EXTRAÍDA ANTERIORMENTE:
+                {self._format_extraction_for_prompt(base_extraction)}
+                
+                📄 INSTRUCCIONES ESPECIALES:
+                - Complementa la información anterior con datos de las páginas {current_pages}
+                - Si hay contradicciones, prioriza la información más reciente
+                - Mantén la coherencia con los datos ya extraídos
+                - Agrega nuevos campos si los encuentras
+                """
+                
+                batch_extraction = await self._process_single_batch(batch, fields, reference_prompt)
+                base_extraction = self._merge_extractions(base_extraction, batch_extraction)
+                
+                logger.info(f"✅ Lote {batch_idx//5 + 2} procesado y consolidado")
+            
+            # Agregar información de páginas procesadas
+            base_extraction['pages_processed'] = len(images)
+            
+            logger.info(f"✅ Procesamiento cascada completado: {len(images)} páginas procesadas")
+            return base_extraction
+                
+        except Exception as e:
+            logger.error(f"❌ Error en procesamiento cascada: {str(e)}")
+            raise
+    
+    def _format_extraction_for_prompt(self, extraction: Dict[str, Any]) -> str:
+        """Formatear extracción para incluir en prompt de referencia"""
+        try:
+            formatted = []
+            for key, value in extraction.items():
+                if key not in ['pages_processed', '_rid', '_etag', '_ts'] and value is not None:
+                    formatted.append(f"- {key}: {value}")
+            return "\n".join(formatted)
+        except Exception as e:
+            logger.warning(f"⚠️ Error formateando extracción para prompt: {str(e)}")
+            return "Información anterior no disponible"
+    
+    def _merge_extractions(self, base: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, Any]:
+        """Combinar extracciones manteniendo coherencia"""
+        try:
+            merged = base.copy()
+            
+            for key, value in new.items():
+                if key in ['pages_processed', '_rid', '_etag', '_ts']:
+                    continue
+                    
+                if key in merged:
+                    # Si el campo ya existe, usar el valor más reciente si no es None
+                    if value is not None:
+                        merged[key] = value
+                else:
+                    # Nuevo campo
+                    merged[key] = value
+            
+            logger.info(f"🔄 Extracciones combinadas: {len(merged)} campos totales")
+            return merged
+            
+        except Exception as e:
+            logger.error(f"❌ Error combinando extracciones: {str(e)}")
+            return base
     
     async def _process_with_document_intelligence(
         self,

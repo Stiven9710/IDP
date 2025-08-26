@@ -20,7 +20,7 @@ from app.models.response import (
     ExtractionField,
     ProcessingSummary
 )
-from app.services.ai_orchestrator import AIOrchestratorService
+from app.services.ai_orchestrator import AIOrchestrator
 from app.services.storage_service import StorageService
 from app.services.queue_storage_service import QueueStorageService
 from app.services.cosmos_service import CosmosService
@@ -36,7 +36,7 @@ class DocumentService:
     
     def __init__(self):
         """Inicializar el servicio de documentos"""
-        self.ai_orchestrator = AIOrchestratorService()
+        self.ai_orchestrator = AIOrchestrator()
         self.storage_service = StorageService()
         self.queue_service = QueueStorageService()
         self.cosmos_service = CosmosService()

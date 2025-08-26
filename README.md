@@ -23,6 +23,7 @@ IDP Expert System es una solución robusta y escalable para el procesamiento int
 - **Síncrono**: Documentos ≤ 10MB se procesan inmediatamente
 - **Asíncrono**: Documentos > 10MB se procesan en segundo plano
 - **Múltiples estrategias**: `dual_service`, `gpt_vision_only`, `hybrid_consensus`
+- **🖼️ Procesamiento en Cascada**: Documentos grandes se procesan por lotes con contexto mantenido
 
 ### **Servicios de IA Integrados**
 - **Azure OpenAI GPT-4o**: Procesamiento de imágenes y documentos
@@ -40,6 +41,12 @@ IDP Expert System es una solución robusta y escalable para el procesamiento int
 - **Imágenes**: PNG, JPG, JPEG, TIFF, BMP, GIF
 - **Office**: XLSX, XLS, PPTX, PPT
 - **Web**: HTML, HTM
+
+### **🖼️ Procesamiento en Cascada para Documentos Grandes**
+- **≤ 5 páginas**: Procesamiento en lote único con GPT-4o
+- **> 5 páginas**: Procesamiento en cascada con contexto mantenido
+- **Contexto inteligente**: Cada lote incluye información de lotes anteriores
+- **Consolidación automática**: Resultados combinados inteligentemente
 
 ## 🎉 **Estado Actual del Sistema**
 

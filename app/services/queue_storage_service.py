@@ -27,7 +27,7 @@ class QueueStorageService:
         self.account_key = settings.azure_storage_account_key
         
         # Nombres de colas
-        self.document_processing_queue = "document-processing"
+        self.document_processing_queue = "document-processing-queue"
         self.high_priority_queue = "high-priority-processing"
         self.failed_processing_queue = "failed-processing"
         
