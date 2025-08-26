@@ -109,6 +109,108 @@ class AzureOpenAIClient:
             logger.error(f"❌ Error en procesamiento: {str(e)}")
             raise
     
+    async def process_multiple_images_vision(
+        self,
+        images_b64: List[str],
+        prompt: str,
+        fields: List[FieldDefinition]
+    ) -> Dict[str, Any]:
+        """
+        Procesar múltiples imágenes con GPT-4o en una sola petición
+        
+        Args:
+            images_b64: Lista de imágenes en base64
+            prompt: Prompt para la extracción
+            fields: Campos a extraer
+            
+        Returns:
+            Diccionario con los campos extraídos de todas las imágenes
+        """
+        logger.info(f"🖼️ Procesando {len(images_b64)} imágenes con GPT-4o en una sola petición")
+        
+        try:
+            # Construir mensaje para GPT-4o con múltiples imágenes
+            messages = [
+                {
+                    "role": "system",
+                    "content": "Eres un experto en extracción de datos de documentos. Debes extraer exactamente los campos solicitados y devolver la respuesta en formato JSON válido."
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+            
+            # Agregar todas las imágenes al mensaje
+            for i, image_b64 in enumerate(images_b64):
+                messages[1]["content"].append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{image_b64}",
+                        "detail": "high"
+                    }
+                })
+                logger.info(f"   🖼️ Imagen {i+1} agregada al mensaje")
+            
+            # Configurar parámetros de la API para GPT-4o
+            payload = {
+                "messages": messages,
+                "max_tokens": 4000,
+                "temperature": 0.1,
+                "top_p": 0.95,
+                "frequency_penalty": 0,
+                "presence_penalty": 0
+            }
+            
+            # URL de la API
+            endpoint = self.endpoint.rstrip('/')
+            url = f"{endpoint}/openai/deployments/{self.deployment_name}/chat/completions"
+            params = {"api-version": self.api_version}
+            headers = {
+                "Content-Type": "application/json",
+                "api-key": self.api_key
+            }
+            
+            logger.info(f"🌐 Enviando {len(images_b64)} imágenes a GPT-4o: {url}")
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url,
+                    params=params,
+                    headers=headers,
+                    json=payload,
+                    timeout=120.0  # Timeout más largo para múltiples imágenes
+                )
+                
+                response.raise_for_status()
+                result = response.json()
+                
+                # Extraer contenido de la respuesta
+                content = result["choices"][0]["message"]["content"]
+                logger.info(f"📝 Respuesta de GPT-4o para {len(images_b64)} imágenes: {content[:200]}...")
+                
+                # Limpiar y parsear JSON de la respuesta
+                try:
+                    # Limpiar la respuesta de GPT-4o (remover backticks de markdown)
+                    cleaned_content = self._clean_gpt_response(content)
+                    extracted_data = json.loads(cleaned_content)
+                    logger.info(f"✅ Datos extraídos exitosamente de {len(images_b64)} imágenes")
+                    return extracted_data
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ Error parseando JSON de GPT-4o: {str(e)}")
+                    logger.warning(f"⚠️ Contenido original: {content[:200]}...")
+                    logger.warning(f"⚠️ Contenido limpiado: {cleaned_content[:200]}...")
+                    return self._extract_fields_from_text(content, fields)
+                    
+        except Exception as e:
+            logger.error(f"❌ Error en procesamiento de múltiples imágenes: {str(e)}")
+            raise
+    
     async def _process_gpt_vision_only(
         self, 
         pdf_bytes: bytes, 
@@ -719,3 +821,7 @@ class CustomDocumentIntelligenceClient:
         except Exception as e:
             logger.warning(f"⚠️ Error extrayendo valor para '{field.name}': {str(e)}")
             return None
+
+
+
+

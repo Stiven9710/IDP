@@ -78,7 +78,7 @@ class AzureOpenAIClient:
             return await self._process_hybrid_consensus(pdf_bytes, prompt, fields)
 ```
 
-### **3. Procesamiento de Imágenes**
+### **3. Procesamiento de Imágenes y Documentos Office**
 
 **document_converter.py:**
 ```python
@@ -98,6 +98,43 @@ class DocumentConverter:
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             
             # Optimizar imagen
+```
+
+**office_converter.py:**
+```python
+class OfficeConverter:
+    def office_to_images_png(self, document_content: bytes) -> List[str]:
+        """Convierte documentos Office (.pptx, .docx, .xlsx) a imágenes PNG"""
+        
+        # Detectar tipo de archivo usando magic bytes
+        file_type = self._detect_file_type(document_content)
+        
+        if file_type == '.pptx':
+            return self._convert_presentation(temp_file_path)
+        # ... otros formatos
+```
+
+### **4. Procesamiento en Cascada para Documentos Grandes**
+
+**ai_orchestrator.py:**
+```python
+async def _process_with_openai_cascade(self, document_content: bytes, prompt: str, fields: List[FieldDefinition]) -> Dict[str, Any]:
+    """Procesamiento inteligente con estrategia de cascada"""
+    
+    # Convertir documento a imágenes
+    if self._is_pdf(document_content):
+        converter = DocumentConverter()
+        images = converter.pdf_to_images_png(document_content)
+    else:
+        converter = OfficeConverter()
+        images = converter.office_to_images_png(document_content)
+    
+    # Decidir estrategia basada en número de páginas
+    if len(images) <= 5:
+        return await self._process_single_batch(images, prompt, fields)
+    else:
+        return await self._process_cascade_batches(images, prompt, fields)
+```
             img = self._optimize_image_for_gpt4o(img)
             
             # Convertir a base64

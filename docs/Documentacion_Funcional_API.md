@@ -87,11 +87,19 @@ PDF → DocumentConverter → Imágenes PNG → GPT-4o → JSON
 - ⚡ **Rápido**: 2-3 segundos
 - 💰 **Económico**: Solo usa OpenAI
 - 🎯 **Preciso**: GPT-4o es excelente para extracción
+- 🖼️ **Múltiples imágenes**: Procesa hasta 5 páginas por lote
 
 **Casos de uso:**
 - Documentos simples
 - Procesamiento rápido requerido
 - Costo optimizado
+- Documentos multi-página (≤ 5 páginas por lote)
+
+**Procesamiento en Cascada para Documentos Grandes:**
+- **≤ 5 páginas**: Procesamiento en lote único
+- **> 5 páginas**: Procesamiento en cascada con contexto
+- **Contexto mantenido**: Cada lote incluye información de lotes anteriores
+- **Consolidación inteligente**: Resultados combinados automáticamente
 
 **Ejemplo de resultado:**
 ```json

@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional
 from app.services.queue_storage_service import QueueStorageService
 from app.services.blob_storage_service import BlobStorageService
 from app.services.cosmos_service import CosmosService
-from app.services.ai_orchestrator import AIOrchestratorService
+from app.services.ai_orchestrator import AIOrchestrator
 from app.core.config import settings
 
 # Configurar logging
@@ -29,7 +29,7 @@ class BackgroundWorker:
         self.queue_service = QueueStorageService()
         self.blob_service = BlobStorageService()
         self.cosmos_service = CosmosService()
-        self.ai_orchestrator = AIOrchestratorService()
+        self.ai_orchestrator = AIOrchestrator()
         
         # Configuración del worker
         self.polling_interval = 5  # segundos entre consultas a la cola
@@ -88,11 +88,18 @@ class BackgroundWorker:
             
             try:
                 # Procesar el documento
-                await self._process_document(message_id, content)
+                processing_result = await self._process_document(message_id, content)
                 
-                # Eliminar mensaje de la cola (procesado exitosamente)
-                await self.queue_service.delete_message(message_id, pop_receipt)
-                logger.info(f"✅ Mensaje procesado y eliminado de la cola: {message_id}")
+                # Solo eliminar mensaje si se procesó exitosamente
+                if processing_result == 'completed':
+                    await self.queue_service.delete_message(message_id, pop_receipt)
+                    logger.info(f"✅ Mensaje procesado y eliminado de la cola: {message_id}")
+                elif processing_result == 'skipped':
+                    # Job ya procesado, solo eliminar mensaje
+                    await self.queue_service.delete_message(message_id, pop_receipt)
+                    logger.info(f"⏭️ Mensaje eliminado (job ya procesado): {message_id}")
+                else:
+                    logger.warning(f"⚠️ Resultado inesperado del procesamiento: {processing_result}")
                 
             except Exception as e:
                 logger.error(f"❌ Error procesando mensaje {message_id}: {str(e)}")
@@ -129,27 +136,26 @@ class BackgroundWorker:
         logger.info(f"   🕐 Timestamp: {datetime.utcnow().isoformat()}")
         logger.info(f"   " + "="*80)
         
+        # Variable para rastrear el estado del procesamiento
+        processing_started = False
+        
         try:
-            # 0. VERIFICAR ESTADO DEL JOB ANTES DE PROCESAR
-            logger.info(f"🔒 PASO 0: VERIFICANDO ESTADO DEL JOB")
+            # 0. VERIFICACIÓN OPTIMIZADA DEL ESTADO DEL JOB
+            logger.info(f"🔒 PASO 0: VERIFICACIÓN OPTIMIZADA DEL ESTADO DEL JOB")
             job_status = await self._get_job_status(job_id)
             
-            if job_status in ['completed', 'failed']:
-                logger.warning(f"   ⚠️ Job {job_id} ya está en estado '{job_status}', saltando procesamiento")
-                return
-            
-            if job_status == 'processing':
-                logger.warning(f"   ⚠️ Job {job_id} ya está siendo procesado, saltando procesamiento")
-                return
-            
-            if job_status != 'pending':
-                logger.warning(f"   ⚠️ Job {job_id} tiene estado inesperado '{job_status}', saltando procesamiento")
-                return
-            
-            logger.info(f"   ✅ Job {job_id} está en estado 'pending', procediendo con el procesamiento")
+            # Solo procesar si está en estado 'pending'
+            if job_status == 'pending':
+                logger.info(f"   ✅ Job {job_id} está en estado 'pending', procediendo con el procesamiento")
+            else:
+                logger.info(f"   ⏭️ Job {job_id} ya está en estado '{job_status}', saltando procesamiento")
+                return 'skipped'
             
             # 1. Actualizar estado del job a 'processing'
+            logger.info(f"   🔄 Actualizando estado del job a 'processing'...")
             await self._update_job_status(job_id, 'processing')
+            logger.info(f"   ✅ Estado del job actualizado a 'processing'")
+            processing_started = True
             
             # 2. Descargar documento desde Blob Storage
             logger.info(f"📥 PASO 2: DESCARGANDO DOCUMENTO DESDE BLOB STORAGE")
@@ -434,9 +440,61 @@ class BackgroundWorker:
             
             # Re-lanzar excepción para que se maneje en _process_queue
             raise
+        
+        finally:
+            # GARANTIZAR ACTUALIZACIÓN DEL ESTADO DEL JOB
+            if processing_started:
+                logger.info(f"🔄 FINALLY: Verificando estado final del job {job_id}")
+                try:
+                    # Obtener estado actual
+                    current_status = await self._get_job_status(job_id)
+                    logger.info(f"   📊 Estado actual del job: {current_status}")
+                    
+                    # Si sigue en 'processing', verificar si debe ser 'completed' o 'failed'
+                    if current_status == 'processing':
+                        logger.warning(f"   ⚠️ Job {job_id} sigue en estado 'processing' - verificando si debe ser 'completed'")
+                        
+                        # Verificar si el job realmente se completó (consultar documentos y extracciones)
+                        try:
+                            # Buscar si existe documento y extracción
+                            from app.services.cosmos_service import CosmosService
+                            cosmos = CosmosService()
+                            
+                            # Verificar si hay documento guardado
+                            doc_exists = await cosmos.get_document_by_job_id(job_id)
+                            ext_exists = await cosmos.get_extraction_by_job_id(job_id)
+                            
+                            if doc_exists and ext_exists:
+                                logger.info(f"   ✅ Job {job_id} tiene documento y extracción - marcando como 'completed'")
+                                await self._update_job_status(
+                                    job_id, 
+                                    'completed',
+                                    processing_time_ms=0,  # No tenemos el tiempo exacto
+                                    fields_extracted=len(ext_exists.get('extraction_data', [])),
+                                    document_id=doc_exists.get('id'),
+                                    extraction_id=ext_exists.get('id')
+                                )
+                            else:
+                                logger.warning(f"   ⚠️ Job {job_id} no tiene documento o extracción - marcando como 'failed'")
+                                await self._update_job_status(job_id, 'failed', "Job incompleto - faltan datos")
+                        except Exception as verify_error:
+                            logger.error(f"   ❌ Error verificando estado del job: {str(verify_error)}")
+                            # Marcar como failed por seguridad
+                            await self._update_job_status(job_id, 'failed', f"Error de verificación: {str(verify_error)}")
+                    
+                except Exception as finally_error:
+                    logger.error(f"   ❌ Error en bloque FINALLY: {str(finally_error)}")
+                    # Último intento de marcar como failed
+                    try:
+                        await self._update_job_status(job_id, 'failed', f"Error crítico en FINALLY: {str(finally_error)}")
+                    except:
+                        logger.error(f"   💥 ERROR CRÍTICO: No se pudo actualizar estado del job {job_id}")
+        
+        # Retornar estado del procesamiento
+        return 'completed'
     
     async def _get_job_status(self, job_id: str) -> str:
-        """Obtener el estado actual de un job desde Cosmos DB"""
+        """Obtener el estado actual de un job desde Cosmos DB con filtrado inteligente"""
         try:
             logger.info(f"   🔍 Consultando estado del job {job_id} en Cosmos DB...")
             
@@ -446,7 +504,11 @@ class BackgroundWorker:
             if job:
                 status = job.get('status', 'unknown')
                 logger.info(f"   ✅ Estado del job {job_id}: {status}")
-                logger.info(f"      📊 Datos del job: {list(job.keys())}")
+                
+                # Solo mostrar datos si es necesario para debugging
+                if status not in ['completed', 'failed']:
+                    logger.info(f"      📊 Datos del job: {list(job.keys())}")
+                
                 return status
             else:
                 logger.warning(f"   ⚠️ Job {job_id} no encontrado en Cosmos DB")

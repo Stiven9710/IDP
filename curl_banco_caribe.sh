@@ -29,27 +29,27 @@ FIELDS_CONFIG='[
   {
     "name": "resumen_propuesta",
     "type": "string",
-    "description": "Un resumen ejecutivo de la propuesta en máximo 30 palabras. Extrae la esencia del proyecto de manera concisa."
+    "description": "Un resumen ejecutivo de la propuesta en máximo 30 palabras. Busca en: resúmenes ejecutivos, introducciones, objetivos del proyecto, descripción general. Si no hay un resumen explícito, crea uno basado en el contenido del documento."
   },
   {
     "name": "tecnologia_implementar",
     "type": "string",
-    "description": "Las tecnologías principales que se van a implementar. Busca en secciones técnicas, arquitectura o especificaciones del proyecto."
+    "description": "Las tecnologías principales que se van a implementar. Busca en: secciones técnicas, arquitectura, especificaciones del proyecto, stack tecnológico, herramientas, plataformas, frameworks, bases de datos, APIs, servicios en la nube. Lista todas las tecnologías mencionadas separadas por comas."
   },
   {
     "name": "requisitos_infraestructura_software",
     "type": "array",
-    "description": "Lista de requisitos de infraestructura de software. Cada elemento debe tener descripcion y cantidad. Busca en secciones de infraestructura, requisitos técnicos o especificaciones del sistema."
+    "description": "Lista de requisitos de infraestructura de software. Busca en: secciones de infraestructura, requisitos técnicos, especificaciones del sistema, hardware, software, servidores, bases de datos, redes, seguridad. Cada elemento debe tener 'descripcion' y 'cantidad'. Si no hay cantidades específicas, estima basándote en el contexto del proyecto."
   },
   {
     "name": "total_horas",
     "type": "number",
-    "description": "El total de horas estimadas para el proyecto. Busca en cronogramas, estimaciones de tiempo o resúmenes ejecutivos."
+    "description": "El total de horas estimadas para el proyecto. Busca en: cronogramas, estimaciones de tiempo, resúmenes ejecutivos, planificación del proyecto, recursos humanos, esfuerzo estimado, duración del proyecto. Si no hay un total explícito, suma todas las horas mencionadas en el documento o estima basándote en la complejidad descrita."
   }
 ]'
 
 # Prompt general
-PROMPT_GENERAL="Actúa como un analista de propuestas técnicas experto en banca. Analiza esta propuesta de Banco Caribe y extrae información técnica específica de manera precisa. Si un campo no está presente, devuélvelo como null. Para cantidades, extrae solo el valor numérico sin texto adicional. IMPORTANTE: Este es un documento grande, enfócate en extraer la información más relevante de las primeras páginas y secciones principales."
+PROMPT_GENERAL="Actúa como un analista de propuestas técnicas experto en banca. Tu tarea es extraer información específica de esta propuesta de Banco Caribe. IMPORTANTE: Debes analizar TODO el documento página por página para encontrar la información solicitada. NO devuelvas null a menos que estés 100% seguro de que el campo no existe en ninguna parte del documento. Para cada campo: 1) Busca en TODAS las páginas, 2) Si encuentras información parcial, extrae lo que puedas, 3) Si no encuentras nada después de revisar todo, entonces devuelve null. Para cantidades, extrae solo el valor numérico. Para arrays, extrae cada elemento con descripción y cantidad. REVISA CADA PÁGINA METICULOSAMENTE."
 
 # Modo de procesamiento
 PROCESSING_MODE="gpt_vision_only"
