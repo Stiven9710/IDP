@@ -1,0 +1,81 @@
+# 🚫 Archivos excluidos del build de Docker
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git
+.mypy_cache
+.pytest_cache
+.hypothesis
+
+# Entornos virtuales
+.venv
+venv/
+ENV/
+env/
+.venv/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Documentación de arquitectura
+Arquitectura de Referencia/
+
+# Archivos temporales
+*.tmp
+*.temp
+.env.local
+.env.backup
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Azure
+*.bicep
+*.json
+!requirements.txt
+!app/**/*.py
+!app/**/*.md

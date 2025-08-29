@@ -1,0 +1,67 @@
+# 🐳 Docker Compose para IDP Expert System - Desarrollo Local
+version: '3.8'
+
+services:
+  # 🌐 API Principal
+  idp-api:
+    build: .
+    container_name: idp-expert-system
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    volumes:
+      # Montar código para hot-reload (desarrollo)
+      - .:/app
+      # Montar logs
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - idp-network
+
+  # 🔄 Background Worker (Opcional para desarrollo)
+  idp-worker:
+    build: .
+    container_name: idp-background-worker
+    command: ["python", "run_background_worker.py"]
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    restart: unless-stopped
+    depends_on:
+      - idp-api
+    networks:
+      - idp-network
+
+  # 🧪 Redis para cache (Opcional)
+  redis:
+    image: redis:7-alpine
+    container_name: idp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - idp-network
+
+networks:
+  idp-network:
+    driver: bridge
+
+volumes:
+  redis_data:
