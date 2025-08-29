@@ -1,0 +1,87 @@
+{
+  "name": "idp-expert-system",
+  "type": "Microsoft.Web/sites",
+  "apiVersion": "2021-02-01",
+  "location": "[resourceGroup().location]",
+  "tags": {
+    "Environment": "Production",
+    "Project": "IDP Expert System",
+    "Owner": "Ronald - Banco Caja Social"
+  },
+  "properties": {
+    "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', 'idp-app-service-plan')]",
+    "siteConfig": {
+      "linuxFxVersion": "DOCKER|idpacr.azurecr.io/idp-expert-system:latest",
+      "appSettings": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "production"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        },
+        {
+          "name": "AZURE_OPENAI_ENDPOINT",
+          "value": "@Microsoft.KeyVault(SecretUri=https://idp-keyvault.vault.azure.net/secrets/azure-openai-endpoint/)"
+        },
+        {
+          "name": "AZURE_OPENAI_API_KEY",
+          "value": "@Microsoft.KeyVault(SecretUri=https://idp-keyvault.vault.azure.net/secrets/azure-openai-api-key/)"
+        },
+        {
+          "name": "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
+          "value": "@Microsoft.KeyVault(SecretUri=https://idp-keyvault.vault.azure.net/secrets/azure-document-intelligence-endpoint/)"
+        },
+        {
+          "name": "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
+          "value": "@Microsoft.KeyVault(SecretUri=https://idp-keyvault.vault.azure.net/secrets/azure-document-intelligence-api-key/)"
+        },
+        {
+          "name": "AZURE_COSMOS_ENDPOINT",
+          "value": "@Microsoft.KeyVault(SecretUri=https://idp-keyvault.vault.azure.net/secrets/azure-cosmos-endpoint/)"
+        },
+        {
+          "name": "AZURE_COSMOS_KEY",
+          "value": "@Microsoft.KeyVault(SecretUri=https://idp-keyvault.vault.azure.net/secrets/azure-cosmos-key/)"
+        },
+        {
+          "name": "AZURE_STORAGE_CONNECTION_STRING",
+          "value": "@Microsoft.KeyVault(SecretUri=https://idp-keyvault.vault.azure.net/secrets/azure-storage-connection-string/)"
+        },
+        {
+          "name": "WEBSITES_PORT",
+          "value": "8000"
+        },
+        {
+          "name": "DOCKER_REGISTRY_SERVER_URL",
+          "value": "https://idpacr.azurecr.io"
+        },
+        {
+          "name": "DOCKER_REGISTRY_SERVER_USERNAME",
+          "value": "@Microsoft.KeyVault(SecretUri=https://idp-keyvault.vault.azure.net/secrets/acr-username/)"
+        },
+        {
+          "name": "DOCKER_REGISTRY_SERVER_PASSWORD",
+          "value": "@Microsoft.KeyVault(SecretUri=https://idp-keyvault.vault.azure.net/secrets/acr-password/)"
+        }
+      ],
+      "connectionStrings": [],
+      "cors": {
+        "allowedOrigins": [
+          "https://idp-expert-system.azurewebsites.net",
+          "https://localhost:3000",
+          "https://localhost:8000"
+        ]
+      },
+      "http20Enabled": true,
+      "minTlsVersion": "1.2",
+      "ftpsState": "Disabled"
+    },
+    "httpsOnly": true,
+    "clientAffinityEnabled": false,
+    "clientCertEnabled": false,
+    "hostNamesDisabled": false,
+    "outboundIpAddresses": "[reference(resourceId('Microsoft.Web/sites', 'idp-expert-system'), '2021-02-01', 'Full').properties.outboundIpAddresses]"
+  }
+}
