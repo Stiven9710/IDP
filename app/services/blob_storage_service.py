@@ -493,3 +493,94 @@ class BlobStorageService:
                 "message": f"Error en Blob Storage: {str(e)}",
                 "timestamp": datetime.utcnow().isoformat()
             }
+    
+    async def list_blobs_in_container(
+        self, 
+        container_name: str, 
+        name_starts_with: Optional[str] = None
+    ) -> List[Any]:
+        """
+        🆕 MÉTODO NATIVO: Listar blobs en un contenedor específico
+        
+        Args:
+            container_name: Nombre del contenedor
+            name_starts_with: Prefijo para filtrar nombres de blobs
+            
+        Returns:
+            Lista de blobs de Azure
+        """
+        if not self._is_available():
+            logger.error("❌ Blob Storage no está disponible")
+            return []
+        
+        try:
+            logger.info(f"📋 Listando blobs en contenedor: {container_name}")
+            if name_starts_with:
+                logger.info(f"   🔍 Filtro: name_starts_with='{name_starts_with}'")
+            
+            container_client = self.blob_service_client.get_container_client(container_name)
+            
+            # Listar blobs usando el método nativo de Azure
+            blobs = list(container_client.list_blobs(name_starts_with=name_starts_with))
+            
+            logger.info(f"✅ Encontrados {len(blobs)} blobs en contenedor {container_name}")
+            for blob in blobs:
+                logger.info(f"   📄 Blob: {blob.name} ({blob.size} bytes)")
+            
+            return blobs
+            
+        except Exception as e:
+            logger.error(f"❌ Error listando blobs en contenedor {container_name}: {e}")
+            logger.error(f"🔍 Tipo de error: {type(e).__name__}")
+            return []
+    
+    async def delete_blob_native(
+        self, 
+        container_name: str, 
+        blob_name: str
+    ) -> bool:
+        """
+        🆕 MÉTODO NATIVO: Eliminar un blob usando métodos nativos de Azure
+        
+        Args:
+            container_name: Nombre del contenedor
+            blob_name: Nombre del blob
+            
+        Returns:
+            True si se eliminó exitosamente, False en caso contrario
+        """
+        if not self._is_available():
+            logger.error("❌ Blob Storage no está disponible")
+            return False
+        
+        try:
+            logger.info(f"🗑️ Eliminando blob usando método nativo de Azure...")
+            logger.info(f"   📁 Contenedor: {container_name}")
+            logger.info(f"   📄 Blob: {blob_name}")
+            
+            # Obtener cliente del contenedor
+            container_client = self.blob_service_client.get_container_client(container_name)
+            
+            # Obtener cliente del blob
+            blob_client = container_client.get_blob_client(blob_name)
+            
+            # Verificar que el blob existe antes de eliminarlo
+            if not blob_client.exists():
+                logger.warning(f"⚠️ Blob {blob_name} no existe en contenedor {container_name}")
+                return False
+            
+            # Eliminar el blob usando el método nativo de Azure
+            blob_client.delete_blob()
+            
+            logger.info(f"✅ Blob eliminado exitosamente usando método nativo de Azure")
+            logger.info(f"   🗑️ Blob eliminado: {blob_name}")
+            logger.info(f"   📁 Contenedor: {container_name}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error eliminando blob con método nativo: {e}")
+            logger.error(f"🔍 Tipo de error: {type(e).__name__}")
+            logger.error(f"📁 Contenedor: {container_name}")
+            logger.error(f"📄 Blob: {blob_name}")
+            return False

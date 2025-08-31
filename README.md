@@ -48,6 +48,18 @@ IDP Expert System es una solución robusta y escalable para el procesamiento int
 - **Contexto inteligente**: Cada lote incluye información de lotes anteriores
 - **Consolidación automática**: Resultados combinados inteligentemente
 
+### **💾 Control de Persistencia de Documentos**
+- **Persistencia configurable**: Control total sobre el almacenamiento de documentos
+- **Eliminación automática**: Documentos se eliminan automáticamente cuando `persistencia=false`
+- **Métodos nativos de Azure**: Eliminación segura usando APIs oficiales de Azure
+- **Optimización de costos**: Evita almacenamiento innecesario de documentos procesados
+
+### **🔒 Seguridad y Validación de URLs**
+- **Validación de dominios**: Lista blanca/negra de dominios permitidos
+- **Verificación de extensiones**: Bloqueo de archivos peligrosos
+- **HTTPS obligatorio**: Solo URLs seguras para documentos externos
+- **Timeouts configurables**: Protección contra ataques de denegación de servicio
+
 ## 🎉 **Estado Actual del Sistema**
 
 ### **✅ Modos de Procesamiento Funcionando**
