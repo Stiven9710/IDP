@@ -48,6 +48,18 @@ cd IDP
 git checkout dev
 ```
 
+### **1.2 Verificar Funcionalidades Implementadas**
+```bash
+# ✅ Funcionalidades disponibles en esta versión:
+# - Procesamiento síncrono/asíncrono (umbral 10MB)
+# - 3 estrategias de extracción: gpt_vision_only, dual_service, hybrid_consensus
+# - Procesamiento en cascada para documentos grandes
+# - 💾 Control de persistencia de documentos (persistencia=true/false)
+# - 🔒 Validación de seguridad para URLs externas
+# - 🗄️ Persistencia automática en Cosmos DB
+# - 🐳 Dockerización completa para desarrollo local
+```
+
 ### **1.2 Configurar Variables de Entorno**
 ```bash
 # 1. Copiar archivo de ejemplo

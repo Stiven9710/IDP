@@ -421,6 +421,121 @@ class BackgroundWorker:
             logger.info(f"   🕐 Timestamp final: {datetime.utcnow().isoformat()}")
             logger.info(f"   " + "="*80)
             
+            # 9. LIMPIEZA AUTOMÁTICA SEGÚN PERSISTENCIA
+            logger.info(f"🧹 PASO 9: LIMPIEZA AUTOMÁTICA SEGÚN CONFIGURACIÓN DE PERSISTENCIA")
+            logger.info(f"   🎯 Configuración de persistencia: {content.get('persistencia', True)}")
+            
+            try:
+                # Obtener configuración de persistencia del mensaje
+                persistencia_raw = content.get('persistencia')
+                logger.info(f"   🔍 Valor raw de persistencia: {persistencia_raw} (tipo: {type(persistencia_raw)})")
+                
+                # Convertir correctamente el valor de persistencia
+                if persistencia_raw is None:
+                    persistencia = True  # Valor por defecto si no se especifica
+                    logger.info(f"   ⚠️ Persistencia no especificada, usando valor por defecto: {persistencia}")
+                elif isinstance(persistencia_raw, str):
+                    # Si es string, convertir a boolean
+                    persistencia = persistencia_raw.lower() not in ['false', '0', 'no', 'off']
+                    logger.info(f"   🔄 Persistencia convertida de string '{persistencia_raw}' a boolean: {persistencia}")
+                elif isinstance(persistencia_raw, bool):
+                    persistencia = persistencia_raw
+                    logger.info(f"   ✅ Persistencia ya es boolean: {persistencia}")
+                else:
+                    # Para otros tipos, usar valor por defecto
+                    persistencia = True
+                    logger.warning(f"   ⚠️ Tipo de persistencia no reconocido: {type(persistencia_raw)}, usando valor por defecto: {persistencia}")
+                
+                if not persistencia:
+                    logger.info(f"   🧹 LIMPIEZA AUTOMÁTICA ACTIVADA - Eliminando documento del storage")
+                    logger.info(f"   📁 Blob a eliminar: {blob_path}")
+                    logger.info(f"   🎯 Razón: persistencia=False")
+                    
+                    # 🆕 IMPLEMENTACIÓN CON MÉTODOS NATIVOS DE AZURE
+                    # En lugar de construir URLs manualmente, usar métodos nativos del BlobService
+                    try:
+                        from urllib.parse import urlparse
+                        
+                        # Parsear la URL del blob original para extraer información
+                        parsed_url = urlparse(blob_path)
+                        path_parts = parsed_url.path.split('/')
+                        
+                        if len(path_parts) >= 3:
+                            # Formato: /{container}/{job_id}/{filename}
+                            job_id_part = path_parts[2]  # job_id
+                            
+                            logger.info(f"   🔍 Buscando documento en container 'processed' con job_id: {job_id_part}")
+                            
+                            # 🆕 USAR MÉTODO NATIVO: listar blobs en el container 'processed' para encontrar el archivo real
+                            try:
+                                # Listar todos los blobs en el container 'processed' con el job_id
+                                processed_blobs = await self.blob_service.list_blobs_in_container(
+                                    container_name="processed",
+                                    name_starts_with=f"{job_id_part}/"
+                                )
+                                
+                                if processed_blobs:
+                                    logger.info(f"   📋 Encontrados {len(processed_blobs)} blobs en container 'processed'")
+                                    
+                                    # Buscar el blob que coincida con el job_id
+                                    target_blob = None
+                                    for blob in processed_blobs:
+                                        if job_id_part in blob.name:
+                                            target_blob = blob
+                                            break
+                                    
+                                    if target_blob:
+                                        logger.info(f"   🎯 Blob encontrado para eliminación: {target_blob.name}")
+                                        logger.info(f"   📊 Tamaño del blob: {target_blob.size} bytes")
+                                        
+                                        # 🆕 USAR MÉTODO NATIVO: delete_blob con container_name y blob_name
+                                        deletion_result = await self.blob_service.delete_blob_native(
+                                            container_name="processed",
+                                            blob_name=target_blob.name
+                                        )
+                                        
+                                        if deletion_result:
+                                            logger.info(f"   ✅ Documento eliminado exitosamente usando método nativo de Azure")
+                                            logger.info(f"   🗑️ Blob eliminado: {target_blob.name}")
+                                            logger.info(f"   🆔 Job: {job_id}")
+                                            logger.info(f"   📊 Container: processed")
+                                        else:
+                                            logger.warning(f"   ⚠️ No se pudo eliminar el documento usando método nativo")
+                                            logger.warning(f"   📁 Blob: {target_blob.name}")
+                                            logger.warning(f"   🆔 Job: {job_id}")
+                                    else:
+                                        logger.warning(f"   ⚠️ No se encontró blob con job_id {job_id_part} en container 'processed'")
+                                        logger.warning(f"   📋 Blobs disponibles: {[b.name for b in processed_blobs]}")
+                                else:
+                                    logger.warning(f"   ⚠️ No se encontraron blobs en container 'processed' con job_id {job_id_part}")
+                                    
+                            except Exception as list_error:
+                                logger.error(f"   ❌ Error listando blobs en container 'processed': {str(list_error)}")
+                                logger.error(f"   🔍 Tipo de error: {type(list_error).__name__}")
+                                logger.warning(f"   ⚠️ Continuando sin eliminación automática")
+                                
+                        else:
+                            logger.warning(f"   ⚠️ No se pudo extraer job_id de la URL del blob")
+                            logger.warning(f"   📁 Blob original: {blob_path}")
+                            logger.warning(f"   🆔 Job: {job_id}")
+                            
+                    except Exception as azure_error:
+                        logger.error(f"   ❌ Error usando métodos nativos de Azure: {str(azure_error)}")
+                        logger.error(f"   🔍 Tipo de error: {type(azure_error).__name__}")
+                        logger.warning(f"   ⚠️ Continuando sin eliminación automática")
+                else:
+                    logger.info(f"   💾 PERSISTENCIA ACTIVADA - Documento conservado en storage")
+                    logger.info(f"   📁 Documento conservado en: {blob_path}")
+                    logger.info(f"   🎯 Razón: persistencia=True")
+                    
+            except Exception as cleanup_error:
+                logger.error(f"   ❌ Error en limpieza automática: {str(cleanup_error)}")
+                logger.error(f"   🔍 Detalles del error: {type(cleanup_error).__name__}")
+                logger.warning(f"   ⚠️ Continuando sin limpieza automática")
+            
+            logger.info(f"🧹 LIMPIEZA AUTOMÁTICA COMPLETADA")
+            logger.info(f"   " + "="*80)
+            
         except Exception as e:
             logger.error(f"❌ ERROR PROCESANDO DOCUMENTO")
             logger.error(f"   🆔 Job ID: {job_id}")

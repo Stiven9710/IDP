@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import httpx
 
 from app.core.config import settings
+from app.core.security_config import security_config
 from app.models.request import DocumentProcessingRequest
 from app.models.response import (
     DocumentProcessingResponse, 
@@ -43,9 +44,185 @@ class DocumentService:
         self.blob_storage_service = BlobStorageService()
         
         # Umbral para procesamiento asíncrono (10MB según requerimiento)
-        self.async_threshold_mb = 10.0
+        self.async_threshold_mb = 10.0        
+        # Configuración de seguridad para URLs externas (usando configuración centralizada)
+        self.security_config = security_config
+        
+        # Logging de configuración de seguridad
+        security_summary = self.security_config.get_security_summary()
+        logger.info(f"🔒 Configuración de seguridad cargada:")
+        logger.info(f"   🌐 Dominios permitidos: {security_summary['allowed_domains_count']}")
+        logger.info(f"   🚫 Dominios bloqueados: {security_summary['blocked_domains_count']}")
+        logger.info(f"   ⚠️ Extensiones peligrosas: {security_summary['dangerous_extensions_count']}")
+        logger.info(f"   ⏱️ Timeout de descarga: {security_summary['download_timeout']}")
+        logger.info(f"   📏 Tamaño máximo: {security_summary['max_file_size']}")
+        logger.info(f"   🔄 Máximo de redirecciones: {security_summary['max_redirects']}")
+        logger.info(f"   🚦 Rate limiting: {security_summary['rate_limiting']['per_minute']}/min, {security_summary['rate_limiting']['per_hour']}/h")
         
         logger.info("🚀 DocumentService inicializado correctamente")
+    
+    async def validate_external_url(self, url: str) -> Dict[str, Any]:
+        """
+        Valida que la URL externa sea segura para procesar
+        
+        Args:
+            url: URL del documento a validar
+            
+        Returns:
+            Dict con resultado de validación y detalles
+        """
+        logger.info(f"🔒 Validando seguridad de URL: {url}")
+        
+        try:
+            # Verificar que sea una URL válida
+            parsed_url = urlparse(url)
+            if not parsed_url.scheme or not parsed_url.netloc:
+                logger.warning(f"⚠️ URL inválida: {url}")
+                return {
+                    'is_valid': False,
+                    'reason': 'URL inválida',
+                    'details': 'La URL no tiene un formato válido'
+                }
+            
+            # Verificar que sea HTTPS
+            if parsed_url.scheme.lower() != 'https':
+                logger.warning(f"⚠️ Protocolo no seguro: {parsed_url.scheme}")
+                return {
+                    'is_valid': False,
+                    'reason': 'Protocolo no seguro',
+                    'details': f'Solo se permiten URLs HTTPS, recibido: {parsed_url.scheme}'
+                }
+            
+            # Extraer dominio
+            domain = parsed_url.netloc.lower()
+            logger.info(f"🌐 Dominio extraído: {domain}")
+            
+            # Verificar dominios bloqueados
+            if self.security_config.is_domain_allowed(domain) == False:
+                logger.warning(f"🚫 Dominio bloqueado o no permitido: {domain}")
+                return {
+                    'is_valid': False,
+                    'reason': 'Dominio no permitido',
+                    'details': f'El dominio {domain} no está en la lista blanca o está bloqueado'
+                }
+            
+            logger.info(f"✅ Dominio permitido: {domain}")
+            
+            # Verificar que no sea una URL local o privada
+            if any(private_ip in domain for private_ip in ['localhost', '127.0.0.1', '192.168.', '10.', '172.']):
+                logger.warning(f"🚫 URL local/privada detectada: {domain}")
+                return {
+                    'is_valid': False,
+                    'reason': 'URL local/privada',
+                    'details': 'No se permiten URLs locales o de redes privadas'
+                }
+            
+            logger.info(f"✅ URL validada exitosamente: {url}")
+            return {
+                'is_valid': True,
+                'reason': 'URL segura',
+                'details': f'Dominio {domain} validado correctamente'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error validando URL: {str(e)}")
+            return {
+                'is_valid': False,
+                'reason': 'Error de validación',
+                'details': f'Error interno: {str(e)}'
+            }
+    
+    async def validate_document_security(self, url: str, file_size_mb: float) -> Dict[str, Any]:
+        """
+        Valida la seguridad del documento antes del procesamiento
+        
+        Args:
+            url: URL del documento
+            file_size_mb: Tamaño del archivo en MB
+            
+        Returns:
+            Dict con resultado de validación de seguridad
+        """
+        logger.info(f"🔒 Validando seguridad del documento: {url}")
+        
+        # 🔍 DETECCIÓN INTELIGENTE: Si no es una URL válida, saltar validación
+        if not url.startswith(('http://', 'https://')):
+            logger.info(f"📁 Archivo local detectado en validate_document_security: {url}")
+            logger.info(f"   ✅ Saltando validaciones de URL externa")
+            return {
+                'is_valid': True,
+                'reason': 'Archivo local',
+                'details': 'Archivo local detectado, validaciones de URL omitidas'
+            }
+        
+        # Validar URL solo si es una URL externa
+        url_validation = await self.validate_external_url(url)
+        if not url_validation['is_valid']:
+            return url_validation
+        
+        # Validar tamaño del archivo
+        if file_size_mb > self.security_config.MAX_FILE_SIZE_MB:
+            logger.warning(f"⚠️ Archivo demasiado grande: {file_size_mb:.2f} MB > {self.security_config.MAX_FILE_SIZE_MB} MB")
+            return {
+                'is_valid': False,
+                'reason': 'Archivo demasiado grande',
+                'details': f'El archivo excede el tamaño máximo permitido: {file_size_mb:.2f} MB > {self.security_config.MAX_FILE_SIZE_MB} MB'
+            }
+        
+        # Validar que no sea un archivo ejecutable
+        file_extension = url.lower().split('.')[-1] if '.' in url else ''
+        
+        if self.security_config.is_extension_dangerous(file_extension):
+            logger.warning(f"🚫 Extensión peligrosa detectada: {file_extension}")
+            return {
+                'is_valid': False,
+                'reason': 'Extensión peligrosa',
+                'details': f'No se permiten archivos con extensión {file_extension}'
+            }
+        
+        logger.info(f"✅ Documento validado como seguro")
+        return {
+            'is_valid': True,
+            'reason': 'Documento seguro',
+            'details': 'Todas las validaciones de seguridad pasaron'
+        }
+    
+    async def _cleanup_document_if_needed(self, job_id: str, blob_path: str, persistencia: bool) -> None:
+        """
+        Limpia el documento del storage según la configuración de persistencia
+        
+        Args:
+            job_id: ID del trabajo de procesamiento
+            blob_path: Ruta del blob en Azure Storage
+            persistencia: Si es True, conserva el documento; si es False, lo elimina
+        """
+        try:
+            if not persistencia:
+                logger.info(f"🧹 LIMPIEZA AUTOMÁTICA ACTIVADA para job {job_id}")
+                logger.info(f"   📁 Blob a eliminar: {blob_path}")
+                logger.info(f"   🎯 Razón: persistencia=False")
+                
+                # Eliminar documento del storage
+                deletion_result = await self.blob_storage_service.delete_document(blob_path)
+                
+                if deletion_result:
+                    logger.info(f"✅ Documento eliminado exitosamente del storage")
+                    logger.info(f"   🗑️ Blob eliminado: {blob_path}")
+                    logger.info(f"   🆔 Job: {job_id}")
+                else:
+                    logger.warning(f"⚠️ No se pudo eliminar el documento del storage")
+                    logger.warning(f"   📁 Blob: {blob_path}")
+                    logger.warning(f"   🆔 Job: {job_id}")
+            else:
+                logger.info(f"💾 PERSISTENCIA ACTIVADA para job {job_id}")
+                logger.info(f"   📁 Documento conservado en: {blob_path}")
+                logger.info(f"   🎯 Razón: persistencia=True")
+                
+        except Exception as e:
+            logger.error(f"❌ Error en limpieza automática del documento: {str(e)}")
+            logger.error(f"   🆔 Job: {job_id}")
+            logger.error(f"   📁 Blob: {blob_path}")
+            logger.error(f"   🎯 Persistencia: {persistencia}")
     
     async def process_document(
         self, 
@@ -69,13 +246,49 @@ class DocumentService:
         logger.info(f"📝 Número de campos a extraer: {len(request.fields)}")
         
         try:
-            # Validar formato del documento
-            if not self._validate_document_format(str(request.document_path)):
-                raise ValueError(f"Formato de documento no soportado: {request.document_path}")
-            
-            # Obtener tamaño del archivo
-            file_size_mb = await self._get_document_size(str(request.document_path))
-            logger.info(f"📏 Tamaño del documento: {file_size_mb:.2f} MB")
+            # 🔒 VALIDACIÓN DE SEGURIDAD PARA URLs EXTERNAS
+            # 🔍 DETECCIÓN INTELIGENTE: Archivo local vs URL externa
+            if hasattr(request, 'file') and request.file:
+                # 📁 ARCHIVO LOCAL - Saltar validaciones de URL
+                logger.info(f"📁 Archivo local detectado: {request.file.filename}")
+                logger.info(f"   ✅ Saltando validaciones de URL externa")
+                
+                # Leer archivo para obtener tamaño
+                file_content = request.file.file.read()
+                file_size_mb = len(file_content) / (1024 * 1024)
+                request.file.file.seek(0)  # Resetear posición del archivo
+                
+                logger.info(f"📏 Tamaño del archivo: {file_size_mb:.2f} MB")
+                logger.info("🔒 VALIDACIONES DE SEGURIDAD COMPLETADAS (archivo local)")
+                logger.info("="*80)
+                
+            else:
+                # 🌐 URL EXTERNA - Aplicar validaciones de seguridad
+                logger.info("🔒 INICIANDO VALIDACIONES DE SEGURIDAD (URL externa)")
+                
+                # Validar formato del documento
+                if not self._validate_document_format(str(request.document_path)):
+                    raise ValueError(f"Formato de documento no soportado: {request.document_path}")
+                
+                # Obtener tamaño del archivo
+                file_size_mb = await self._get_document_size(str(request.document_path))
+                logger.info(f"📏 Tamaño del documento: {file_size_mb:.2f} MB")
+                
+                # Validar seguridad del documento (URL + tamaño + extensión)
+                security_validation = await self.validate_document_security(
+                    str(request.document_path), 
+                    file_size_mb
+                )
+                
+                if not security_validation['is_valid']:
+                    logger.error(f"🚫 VALIDACIÓN DE SEGURIDAD FALLIDA: {security_validation['reason']}")
+                    logger.error(f"📋 Detalles: {security_validation['details']}")
+                    raise ValueError(f"Documento rechazado por seguridad: {security_validation['reason']} - {security_validation['details']}")
+                
+                logger.info(f"✅ VALIDACIÓN DE SEGURIDAD EXITOSA: {security_validation['reason']}")
+                logger.info(f"📋 Detalles: {security_validation['details']}")
+                logger.info("🔒 VALIDACIONES DE SEGURIDAD COMPLETADAS")
+                logger.info("="*80)
             
             # Decidir si procesar de forma síncrona o asíncrona
             logger.info(f"🔍 DECISIÓN DE PROCESAMIENTO:")
@@ -136,6 +349,41 @@ class DocumentService:
             # Calcular tiempo de procesamiento
             processing_time_ms = int((time.time() - start_time) * 1000)
             logger.info(f"⏱️ Tiempo total de procesamiento: {processing_time_ms}ms")
+            
+            # ===== INICIO: GESTIÓN DE STORAGE Y PERSISTENCIA =====
+            logger.info(f"💾 GESTIÓN DE STORAGE Y PERSISTENCIA para job {job_id}")
+            logger.info(f"   🎯 Configuración de persistencia: {request.persistencia}")
+            
+            # Subir documento al storage para procesamiento
+            filename = str(request.document_path).split("/")[-1] if "/" in str(request.document_path) else str(request.document_path)
+            
+            # Limpiar metadatos para Azure
+            clean_metadata = {}
+            if request.metadata:
+                for key, value in request.metadata.items():
+                    if value is not None:
+                        clean_metadata[key] = str(value)
+            
+            # Agregar metadatos de persistencia
+            clean_metadata['persistencia'] = str(request.persistencia)
+            clean_metadata['job_id'] = job_id
+            clean_metadata['processing_mode'] = request.processing_mode
+            
+            blob_path = await self.blob_storage_service.upload_document(
+                file_content=document_content,
+                filename=filename,
+                job_id=job_id,
+                metadata=clean_metadata
+            )
+            
+            if not blob_path:
+                logger.warning(f"⚠️ No se pudo subir el documento al storage, pero continuando con el procesamiento")
+                blob_path = f"error_upload_{job_id}"
+            else:
+                logger.info(f"📦 Documento subido al storage: {blob_path}")
+                logger.info(f"   🎯 Persistencia configurada: {request.persistencia}")
+            
+            # ===== FIN: GESTIÓN DE STORAGE Y PERSISTENCIA =====
             
             # Crear response
             response = DocumentProcessingResponse(
@@ -249,6 +497,12 @@ class DocumentService:
             logger.info(f"   ⏱️ Tiempo: {processing_time_ms}ms")
             logger.info(f"   🗄️ Cosmos DB: Document={doc_id}, Extraction={ext_id if 'ext_id' in locals() else 'N/A'}, Job={job_db_id if 'job_db_id' in locals() else 'N/A'}")
             
+            # ===== INICIO: LIMPIEZA AUTOMÁTICA SEGÚN PERSISTENCIA =====
+            logger.info(f"🧹 INICIANDO LIMPIEZA AUTOMÁTICA para job {job_id}")
+            await self._cleanup_document_if_needed(job_id, blob_path, request.persistencia)
+            logger.info(f"🧹 LIMPIEZA AUTOMÁTICA COMPLETADA para job {job_id}")
+            # ===== FIN: LIMPIEZA AUTOMÁTICA SEGÚN PERSISTENCIA =====
+            
             logger.info(f"✅ Procesamiento síncrono completado exitosamente para job {job_id}")
             return response
             
@@ -306,8 +560,15 @@ class DocumentService:
                 "fields": [field.dict() for field in request.fields],
                 "metadata": request.metadata,
                 "file_size_mb": file_size_mb,
+                "persistencia": str(request.persistencia).lower(),  # Forzar como string para evitar problemas de serialización
                 "created_at": datetime.utcnow().isoformat()
             }
+            
+            # Logging detallado del mensaje de la cola
+            logger.info(f"📬 PREPARANDO MENSAJE PARA LA COLA:")
+            logger.info(f"   🎯 Persistencia original: {request.persistencia} (tipo: {type(request.persistencia)})")
+            logger.info(f"   🔄 Persistencia convertida: {queue_message['persistencia']} (tipo: {type(queue_message['persistencia'])})")
+            logger.info(f"   📋 Mensaje completo: {queue_message}")
             
             await self.queue_service.send_message(
                 message_data=queue_message,

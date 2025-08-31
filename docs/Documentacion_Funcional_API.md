@@ -98,6 +98,34 @@ PDF → DocumentConverter → Imágenes PNG → GPT-4o → JSON
 **Procesamiento en Cascada para Documentos Grandes:**
 - **≤ 5 páginas**: Procesamiento en lote único
 - **> 5 páginas**: Procesamiento en cascada con contexto
+
+### **💾 Control de Persistencia de Documentos**
+
+**Funcionalidad:**
+- **Parámetro `persistencia`**: Controla si el documento se conserva o elimina después del procesamiento
+- **Valores**: `true` (conservar) o `false` (eliminar automáticamente)
+- **Aplicación**: Tanto para procesamiento síncrono como asíncrono
+
+**Comportamiento:**
+```python
+if persistencia == True:
+    # Documento se conserva en Azure Blob Storage
+    # Ubicación: container 'processed'
+    # Acceso: Disponible para consultas posteriores
+else:
+    # Documento se elimina automáticamente después del procesamiento
+    # Eliminación: Usando métodos nativos de Azure
+    # Optimización: Reduce costos de almacenamiento
+```
+
+**Casos de uso:**
+- **`persistencia=true`**: Documentos que requieren auditoría o consulta posterior
+- **`persistencia=false`**: Procesamiento único, optimización de costos, documentos temporales
+
+**Implementación técnica:**
+- **Eliminación nativa**: Usa `azure-storage-blob` SDK oficial
+- **Verificación previa**: Confirma existencia del blob antes de eliminar
+- **Logs detallados**: Registra todo el proceso de limpieza automática
 - **Contexto mantenido**: Cada lote incluye información de lotes anteriores
 - **Consolidación inteligente**: Resultados combinados automáticamente
 

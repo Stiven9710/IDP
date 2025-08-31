@@ -412,6 +412,79 @@ async def call_azure_api_with_retry(api_call):
     return await api_call()
 ```
 
+### **4. 💾 Control de Persistencia de Documentos**
+
+**Implementación en Background Worker:**
+```python
+# app/services/background_worker.py - PASO 9: LIMPIEZA AUTOMÁTICA
+if not persistencia:
+    logger.info(f"🧹 LIMPIEZA AUTOMÁTICA ACTIVADA - Eliminando documento del storage")
+    
+    # 🆕 IMPLEMENTACIÓN CON MÉTODOS NATIVOS DE AZURE
+    try:
+        # Listar blobs en container 'processed' para encontrar el archivo real
+        processed_blobs = await self.blob_service.list_blobs_in_container(
+            container_name="processed",
+            name_starts_with=f"{job_id_part}/"
+        )
+        
+        if processed_blobs:
+            # Buscar blob que coincida con job_id
+            target_blob = None
+            for blob in processed_blobs:
+                if job_id_part in blob.name:
+                    target_blob = blob
+                    break
+            
+            if target_blob:
+                # 🆕 USAR MÉTODO NATIVO: delete_blob con container_name y blob_name
+                deletion_result = await self.blob_service.delete_blob_native(
+                    container_name="processed",
+                    blob_name=target_blob.name
+                )
+                
+                if deletion_result:
+                    logger.info(f"✅ Documento eliminado exitosamente usando método nativo de Azure")
+                    
+    except Exception as azure_error:
+        logger.error(f"❌ Error usando métodos nativos de Azure: {str(azure_error)}")
+```
+
+**Métodos nativos implementados en BlobStorageService:**
+```python
+# app/services/blob_storage_service.py
+async def list_blobs_in_container(
+    self, 
+    container_name: str, 
+    name_starts_with: Optional[str] = None
+) -> List[Any]:
+    """Listar blobs usando métodos nativos de Azure"""
+    container_client = self.blob_service_client.get_container_client(container_name)
+    blobs = list(container_client.list_blobs(name_starts_with=name_starts_with))
+    return blobs
+
+async def delete_blob_native(
+    self, 
+    container_name: str, 
+    blob_name: str
+) -> bool:
+    """Eliminar blob usando métodos nativos de Azure"""
+    container_client = self.blob_service_client.get_container_client(container_name)
+    blob_client = container_client.get_blob_client(blob_name)
+    
+    if blob_client.exists():
+        blob_client.delete_blob()
+        return True
+    return False
+```
+
+**Ventajas de la implementación nativa:**
+- **🔐 Autenticación automática**: Usa credenciales configuradas en el servicio
+- **✅ Verificación previa**: Confirma existencia del blob antes de eliminar
+- **📊 Logs detallados**: Registra todo el proceso de eliminación
+- **🛡️ Manejo de errores**: Captura y registra errores específicos de Azure
+- **⚡ Rendimiento**: Operaciones directas sin construcción manual de URLs
+
 ## 📚 **Recursos Adicionales**
 
 ### **Documentación Oficial**

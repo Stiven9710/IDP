@@ -70,6 +70,11 @@ class DocumentProcessingRequest(BaseModel):
         description="Metadatos adicionales del documento"
     )
     
+    persistencia: bool = Field(
+        default=True,
+        description="Si es True, el documento se conserva en storage después del procesamiento. Si es False, se elimina automáticamente."
+    )
+    
     @validator('document_path')
     def validate_document_path(cls, v):
         """Validar que document_path sea una URL válida o una ruta de archivo local"""

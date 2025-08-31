@@ -77,6 +77,7 @@ async def process_document_upload(
     fields_config: str = Form(None),
     prompt_general: str = Form("Extrae información de este documento"),
     processing_mode: str = Form("gpt_vision_only"),
+    persistencia: bool = Form(True),  # Agregar parámetro de persistencia
     background_tasks: BackgroundTasks = None
 ) -> DocumentProcessingResponse:
     """
@@ -96,6 +97,7 @@ async def process_document_upload(
     logger.info(f"📄 Archivo: {file.filename}")
     logger.info(f"📏 Tamaño: {file.size} bytes")
     logger.info(f"🎯 Modo: {processing_mode}")
+    logger.info(f"💾 Persistencia: {persistencia} (tipo: {type(persistencia)})")
     
     try:
         # Validar configuración
@@ -208,6 +210,7 @@ async def process_document_upload(
                 processing_mode=processing_mode,
                 prompt_general=prompt_general,
                 fields=field_definitions,
+                persistencia=persistencia,  # Agregar parámetro de persistencia
                 metadata={
                     "source": "file_upload",
                     "filename": file.filename,
