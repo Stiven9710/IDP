@@ -4,7 +4,7 @@ version: '3.8'
 services:
   # 🌐 API Principal
   idp-api:
-    build: .
+    image: idp-expert-system:v2.1.0
     container_name: idp-expert-system
     ports:
       - "8000:8000"
@@ -30,7 +30,7 @@ services:
 
   # 🔄 Background Worker (Opcional para desarrollo)
   idp-worker:
-    build: .
+    image: idp-expert-system:v2.1.0
     container_name: idp-background-worker
     command: ["python", "run_background_worker.py"]
     environment:
