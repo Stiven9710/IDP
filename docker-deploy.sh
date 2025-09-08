@@ -75,11 +75,11 @@ test_local() {
     sleep 30
     
     # Verificar health check
-    if curl -f http://localhost:8000/health > /dev/null 2>&1; then
-        success "✅ API funcionando correctamente en http://localhost:8000"
+    if curl -f http://159.203.149.247:8000/health > /dev/null 2>&1; then
+        success "✅ API funcionando correctamente en http://159.203.149.247:8000"
         log "📚 Documentación disponible en:"
-        log "   • Swagger UI: http://localhost:8000/docs"
-        log "   • ReDoc: http://localhost:8000/redoc"
+        log "   • Swagger UI: http://159.203.149.247:8000/docs"
+        log "   • ReDoc: http://159.203.149.247:8000/redoc"
     else
         error "❌ API no responde al health check"
         docker-compose logs idp-api

@@ -109,7 +109,7 @@ class DocumentService:
             logger.info(f"✅ Dominio permitido: {domain}")
             
             # Verificar que no sea una URL local o privada
-            if any(private_ip in domain for private_ip in ['localhost', '127.0.0.1', '192.168.', '10.', '172.']):
+            if any(private_ip in domain for private_ip in ['159.203.149.247', '127.0.0.1', '192.168.', '10.', '172.']):
                 logger.warning(f"🚫 URL local/privada detectada: {domain}")
                 return {
                     'is_valid': False,

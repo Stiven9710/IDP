@@ -4,7 +4,7 @@ version: '3.8'
 services:
   # 🌐 API Principal
   idp-api:
-    image: idp-expert-system:v2.1.0
+    image: idp-expert-system:latest
     container_name: idp-expert-system
     ports:
       - "8000:8000"
@@ -17,10 +17,11 @@ services:
       # Montar código para hot-reload (desarrollo)
       - .:/app
       # Montar logs
-      - ./logs:/app/logs
+      - /opt/IDP-Expert/logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://159.203.149.247:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -30,7 +31,7 @@ services:
 
   # 🔄 Background Worker (Opcional para desarrollo)
   idp-worker:
-    image: idp-expert-system:v2.1.0
+    image: idp-expert-system:latest
     container_name: idp-background-worker
     command: ["python", "run_background_worker.py"]
     environment:
@@ -40,7 +41,8 @@ services:
       - .env
     volumes:
       - .:/app
-      - ./logs:/app/logs
+      - /opt/IDP-Expert/logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     depends_on:
       - idp-api
@@ -55,6 +57,7 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+      - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     networks:
       - idp-network

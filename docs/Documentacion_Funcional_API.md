@@ -226,7 +226,7 @@ PDF → [GPT Vision + Document Intelligence] → Consenso Inteligente → JSON
 
 **Ejemplo de uso:**
 ```bash
-curl -X POST 'http://localhost:8000/api/v1/documents/process-upload' \
+curl -X POST 'http://159.203.149.247:8000/api/v1/documents/process-upload' \
   -F 'file=@tests/Documentos/Invoice_2082463105.pdf' \
   -F 'fields_config=[{"name": "numero_factura", "type": "string", "description": "..."}]' \
   -F 'prompt_general=Actúa como un analista financiero...' \
@@ -544,9 +544,9 @@ grep "65dd7fb8-8810-42ef-9818-43739bacbff1" idp.log
 - **`tests/Documentos/`**: Documentos de prueba
 
 ### **Herramientas de Desarrollo**
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **Health Checks**: http://localhost:8000/health
+- **Swagger UI**: http://159.203.149.247:8000/docs
+- **ReDoc**: http://159.203.149.247:8000/redoc
+- **Health Checks**: http://159.203.149.247:8000/health
 
 ---
 

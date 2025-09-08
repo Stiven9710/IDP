@@ -358,7 +358,7 @@ cleanup_disabled = True       # Deshabilitar limpieza automática
 #### **1. Test de Limpieza Automática:**
 ```bash
 # Test con persistencia=false
-curl -X POST "http://localhost:8000/process" \
+curl -X POST "http://159.203.149.247:8000/process" \
   -H "Content-Type: application/json" \
   -d '{
     "document_path": "https://sharepoint.com/test.pdf",
@@ -372,7 +372,7 @@ curl -X POST "http://localhost:8000/process" \
 #### **2. Test de Persistencia:**
 ```bash
 # Test con persistencia=true
-curl -X POST "http://localhost:8000/process" \
+curl -X POST "http://159.203.149.247:8000/process" \
   -H "Content-Type: application/json" \
   -d '{
     "document_path": "https://sharepoint.com/test.pdf",

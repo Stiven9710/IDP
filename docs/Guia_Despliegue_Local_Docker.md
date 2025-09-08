@@ -134,7 +134,7 @@ docker-compose logs -f
 ### **3.1 Health Check Básico**
 ```bash
 # Verificar que la API esté funcionando
-curl http://localhost:8000/health
+curl http://159.203.149.247:8000/health
 
 # Respuesta esperada:
 {
@@ -147,15 +147,15 @@ curl http://localhost:8000/health
 ### **3.2 Health Check Detallado**
 ```bash
 # Verificar todos los servicios
-curl http://localhost:8000/api/v1/health/storage
+curl http://159.203.149.247:8000/api/v1/health/storage
 
 # Verificar Cosmos DB
-curl http://localhost:8000/api/v1/health/cosmos
+curl http://159.203.149.247:8000/api/v1/health/cosmos
 ```
 
 ### **3.3 Documentación de la API**
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Swagger UI**: http://159.203.149.247:8000/docs
+- **ReDoc**: http://159.203.149.247:8000/redoc
 
 ---
 
@@ -195,13 +195,13 @@ docker inspect idp-expert-system
 ### **5.1 Test Simple con Health Check**
 ```bash
 # Usar Postman o curl
-curl -X GET "http://localhost:8000/health"
+curl -X GET "http://159.203.149.247:8000/health"
 ```
 
 ### **5.2 Test de Procesamiento de Documentos**
 ```bash
 # Procesar un PDF
-curl -X POST "http://localhost:8000/api/v1/documents/process-upload" \
+curl -X POST "http://159.203.149.247:8000/api/v1/documents/process-upload" \
   -F "file=@./tests/Documentos/Invoice_2082463105.pdf" \
   -F "processing_mode=gpt_vision_only" \
   -F "prompt_general=Extrae información de esta factura" \
@@ -211,7 +211,7 @@ curl -X POST "http://localhost:8000/api/v1/documents/process-upload" \
 ### **5.3 Test de Procesamiento Asíncrono**
 ```bash
 # Para documentos grandes (>10MB)
-curl -X POST "http://localhost:8000/api/v1/documents/process-upload" \
+curl -X POST "http://159.203.149.247:8000/api/v1/documents/process-upload" \
   -F "file=@./tests/Documentos/Banco Caribe - Propuesta Perfil Transaccional IB Final.pptx" \
   -F "processing_mode=gpt_vision_only" \
   -F "prompt_general=Analiza esta propuesta técnica" \
@@ -263,7 +263,7 @@ docker-compose exec idp-api curl -f https://tu-openai.openai.azure.com/
 docker-compose logs -f idp-worker
 
 # Verificar colas de Azure
-curl http://localhost:8000/api/v1/health/storage
+curl http://159.203.149.247:8000/api/v1/health/storage
 
 # Reiniciar worker
 docker-compose restart idp-worker
@@ -386,8 +386,8 @@ services:
 ## 🎉 **¡DESPLIEGUE COMPLETADO!**
 
 ### **✅ Verificaciones Finales:**
-1. **🌐 API funcionando**: http://localhost:8000/health
-2. **📚 Documentación**: http://localhost:8000/docs
+1. **🌐 API funcionando**: http://159.203.149.247:8000/health
+2. **📚 Documentación**: http://159.203.149.247:8000/docs
 3. **🔄 Background Worker**: Procesando colas
 4. **🗄️ Redis**: Funcionando en puerto 6379
 5. **☁️ Azure Services**: Conectados y funcionando
