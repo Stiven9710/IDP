@@ -181,7 +181,7 @@ def show_api_usage():
     logger.info("   python main.py")
     
     logger.info("\n2️⃣ Abrir la documentación interactiva:")
-    logger.info("   http://localhost:8000/docs")
+    logger.info("   http://159.203.149.247:8000/docs")
     
     logger.info("\n3️⃣ Usar el endpoint principal:")
     logger.info("   POST /api/v1/documents/process")

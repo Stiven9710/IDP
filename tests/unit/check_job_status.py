@@ -18,7 +18,7 @@ def check_job_status(job_id: str):
     print()
     
     # Endpoint para consultar estado
-    status_url = f"http://localhost:8000/api/v1/jobs/{job_id}/status"
+    status_url = f"http://159.203.149.247:8000/api/v1/jobs/{job_id}/status"
     
     try:
         print(f"🌐 Consultando estado...")
@@ -70,7 +70,7 @@ def get_job_result(job_id: str):
     print("=" * 50)
     
     # Endpoint para obtener resultado
-    result_url = f"http://localhost:8000/api/v1/jobs/{job_id}/result"
+    result_url = f"http://159.203.149.247:8000/api/v1/jobs/{job_id}/result"
     
     try:
         print(f"🌐 Consultando resultado...")
@@ -131,7 +131,7 @@ def list_all_jobs():
     print("=" * 50)
     
     # Endpoint para listar jobs
-    jobs_url = "http://localhost:8000/api/v1/jobs"
+    jobs_url = "http://159.203.149.247:8000/api/v1/jobs"
     
     try:
         print(f"🌐 Consultando jobs...")

@@ -64,7 +64,7 @@ def test_banco_caribe_document():
     # 5. Llamar a la API
     print("\n🌐 Llamando a la API del sistema IDP...")
     
-    api_url = "http://localhost:8000/api/v1/documents/process-upload"
+    api_url = "http://159.203.149.247:8000/api/v1/documents/process-upload"
     
     # Preparar datos multipart
     files = {

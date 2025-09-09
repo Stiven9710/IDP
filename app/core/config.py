@@ -109,8 +109,8 @@ def get_cors_origins() -> List[str]:
             "https://your-power-app.powerapps.com"
         ]
     else:
-        # En desarrollo, permitir localhost
-        return ["http://localhost:3000", "http://localhost:8000"]
+        # En desarrollo, permitir 159.203.149.247
+        return ["http://159.203.149.247:3000", "http://159.203.149.247:8000"]
 
 
 # Configurar logging al importar el módulo

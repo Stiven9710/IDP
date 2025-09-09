@@ -364,7 +364,7 @@ def main():
     print("6. Usa /process-upload-custom para configuración personalizada")
     
     print("\n🔧 EJEMPLO DE USO:")
-    print("curl -X POST 'http://localhost:8000/api/v1/documents/process-upload-custom' \\")
+    print("curl -X POST 'http://159.203.149.247:8000/api/v1/documents/process-upload-custom' \\")
     print("  -F 'file=@tests/Documentos/Invoice_2082463105.pdf' \\")
     print("  -F 'fields_config=@test_config_1.json' \\")
     print("  -F 'prompt_general=Analiza esta factura colombiana' \\")

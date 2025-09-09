@@ -70,8 +70,8 @@
       "cors": {
         "allowedOrigins": [
           "https://idp-expert-system.azurewebsites.net",
-          "https://localhost:3000",
-          "https://localhost:8000"
+          "https://159.203.149.247:3000",
+          "https://159.203.149.247:8000"
         ]
       },
       "http20Enabled": true,

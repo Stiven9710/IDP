@@ -186,7 +186,7 @@ def generar_comando_curl(config: Dict[str, Any], nombre_test: str):
     mode = config['processing_mode']
     
     print(f"\n🔧 COMANDO CURL PARA {nombre_test.upper()}:")
-    print("curl -X POST 'http://localhost:8000/api/v1/documents/process-upload' \\")
+    print("curl -X POST 'http://159.203.149.247:8000/api/v1/documents/process-upload' \\")
     print(f"  -F 'file=@tests/Documentos/Invoice_2082463105.pdf' \\")
     print(f"  -F 'fields_config={fields_json}' \\")
     print(f"  -F 'prompt_general={prompt}' \\")
@@ -197,7 +197,7 @@ def generar_comando_curl(config: Dict[str, Any], nombre_test: str):
     escaped_prompt = prompt.replace('"', '\\"')
     
     print(f"\n📋 COMANDO LISTO PARA COPIAR:")
-    print(f'curl -X POST "http://localhost:8000/api/v1/documents/process-upload" \\')
+    print(f'curl -X POST "http://159.203.149.247:8000/api/v1/documents/process-upload" \\')
     print(f'  -F "file=@tests/Documentos/Invoice_2082463105.pdf" \\')
     print(f'  -F "fields_config={escaped_fields}" \\')
     print(f'  -F "prompt_general={escaped_prompt}" \\')

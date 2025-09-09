@@ -3,7 +3,7 @@
 echo "🚀 PROBANDO API IDP - FACTURA COLOMBIANA"
 echo "=========================================="
 echo "📄 Documento: tests/Documentos/Invoice_2082463105.pdf"
-echo "🌐 API URL: http://localhost:8000/api/v1/documents/process-upload"
+echo "🌐 API URL: http://159.203.149.247:8000/api/v1/documents/process-upload"
 echo ""
 
 echo "📋 Configuración:"
@@ -16,7 +16,7 @@ echo "🌐 Ejecutando API..."
 echo ""
 
 # Ejecutar curl con la factura
-curl -X POST "http://localhost:8000/api/v1/documents/process-upload" \
+curl -X POST "http://159.203.149.247:8000/api/v1/documents/process-upload" \
   -H "Content-Type: multipart/form-data" \
   -F "file=@tests/Documentos/Invoice_2082463105.pdf" \
   -F "processing_mode=gpt_vision_only" \
@@ -31,5 +31,5 @@ echo ""
 echo "💡 Para monitorear el procesamiento:"
 echo "   • Ver logs del worker: tail -f worker.log"
 echo "   • Ver logs de la API: tail -f api.log"
-echo "   • Verificar estado: curl http://localhost:8000/api/v1/health/storage"
-echo "   • Verificar jobs: curl http://localhost:8000/api/v1/jobs/"
+echo "   • Verificar estado: curl http://159.203.149.247:8000/api/v1/health/storage"
+echo "   • Verificar jobs: curl http://159.203.149.247:8000/api/v1/jobs/"

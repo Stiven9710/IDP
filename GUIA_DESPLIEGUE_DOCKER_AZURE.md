@@ -45,14 +45,14 @@ docker-compose up --build -d
 ### **1.4 Verificar Funcionamiento**
 ```bash
 # Health check
-curl http://localhost:8000/health
+curl http://159.203.149.247:8000/health
 
 # Documentación
-# Swagger UI: http://localhost:8000/docs
-# ReDoc: http://localhost:8000/redoc
+# Swagger UI: http://159.203.149.247:8000/docs
+# ReDoc: http://159.203.149.247:8000/redoc
 
 # Probar API
-curl -X POST "http://localhost:8000/api/v1/documents/process-upload" \
+curl -X POST "http://159.203.149.247:8000/api/v1/documents/process-upload" \
   -F "file=@tests/unit/test_request_example.json" \
   -F "processing_mode=gpt_vision_only"
 ```

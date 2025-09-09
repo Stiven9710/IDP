@@ -109,7 +109,7 @@ wait_for_api() {
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+        if curl -f http://159.203.149.247:8000/health > /dev/null 2>&1; then
             success "✅ API funcionando correctamente"
             return 0
         fi
@@ -127,10 +127,10 @@ wait_for_api() {
 show_deployment_info() {
     log "📊 Información del despliegue:"
     echo ""
-    echo "🌐 API URL: http://localhost:8000"
-    echo "📚 Swagger UI: http://localhost:8000/docs"
-    echo "📖 ReDoc: http://localhost:8000/redoc"
-    echo "🔍 Health Check: http://localhost:8000/health"
+    echo "🌐 API URL: http://159.203.149.247:8000"
+    echo "📚 Swagger UI: http://159.203.149.247:8000/docs"
+    echo "📖 ReDoc: http://159.203.149.247:8000/redoc"
+    echo "🔍 Health Check: http://159.203.149.247:8000/health"
     echo ""
     echo "📋 Contenedores ejecutándose:"
     docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
@@ -160,7 +160,7 @@ quick_test() {
     log "🧪 Ejecutando test rápido..."
     
     # Test de health check
-    if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+    if curl -f http://159.203.149.247:8000/health > /dev/null 2>&1; then
         success "✅ Health check exitoso"
     else
         error "❌ Health check falló"
@@ -168,7 +168,7 @@ quick_test() {
     fi
     
     # Test de storage health
-    if curl -f http://localhost:8000/api/v1/health/storage > /dev/null 2>&1; then
+    if curl -f http://159.203.149.247:8000/api/v1/health/storage > /dev/null 2>&1; then
         success "✅ Storage health check exitoso"
     else
         warning "⚠️ Storage health check falló (puede ser normal si Azure no está configurado)"
@@ -208,8 +208,8 @@ main() {
         
         success "🎉 ¡Despliegue completado exitosamente!"
         echo ""
-        echo "🌐 Tu API está disponible en: http://localhost:8000"
-        echo "📚 Documentación en: http://localhost:8000/docs"
+        echo "🌐 Tu API está disponible en: http://159.203.149.247:8000"
+        echo "📚 Documentación en: http://159.203.149.247:8000/docs"
         echo ""
         echo "💡 Para más información, consulta: docs/Guia_Despliegue_Local_Docker.md"
         

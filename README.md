@@ -186,8 +186,8 @@ python main.py
 ```
 
 ### **2. Documentación Interactiva**
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- **Swagger UI**: http://159.203.149.247:8000/docs
+- **ReDoc**: http://159.203.149.247:8000/redoc
 
 ### **3. Endpoint Principal**
 ```bash
@@ -196,7 +196,7 @@ POST /api/v1/documents/process-upload
 
 **Form Data:**
 ```bash
-curl -X POST 'http://localhost:8000/api/v1/documents/process-upload' \
+curl -X POST 'http://159.203.149.247:8000/api/v1/documents/process-upload' \
   -F 'file=@tests/Documentos/Invoice_2082463105.pdf' \
   -F 'fields_config=[{"name": "numero_factura", "type": "string", "description": "..."}]' \
   -F 'prompt_general=Actúa como un analista financiero...' \
@@ -349,7 +349,7 @@ AZURE_COSMOS_CONTAINER_JOBS=processing_jobs
 ### **Desarrollo Local**
 ```bash
 python main.py
-# Servidor en http://localhost:8000
+# Servidor en http://159.203.149.247:8000
 ```
 
 ### **Docker**
@@ -368,7 +368,7 @@ docker run -p 8000:8000 idp-expert-system
 ### **Factura Colombiana**
 ```bash
 # Usar el JSON de ejemplo incluido
-curl -X POST "http://localhost:8000/api/v1/documents/process-upload" \
+curl -X POST "http://159.203.149.247:8000/api/v1/documents/process-upload" \
      -F 'file=@tests/Documentos/Invoice_2082463105.pdf' \
      -F 'fields_config=[...]' \
      -F 'prompt_general=...' \
@@ -387,10 +387,10 @@ curl -X POST "http://localhost:8000/api/v1/documents/process-upload" \
 python query_cosmos_data.py
 
 # Consultar historial desde API
-curl "http://localhost:8000/api/v1/documents/extractions/history/doc_id_aqui"
+curl "http://159.203.149.247:8000/api/v1/documents/extractions/history/doc_id_aqui"
 
 # Buscar extracciones
-curl "http://localhost:8000/api/v1/documents/extractions/search?query=2082463105"
+curl "http://159.203.149.247:8000/api/v1/documents/extractions/search?query=2082463105"
 ```
 
 ## 📚 **Documentación Adicional**
@@ -427,7 +427,7 @@ Este proyecto está bajo la licencia MIT. Ver el archivo `LICENSE` para más det
 1. **Configurar credenciales de Azure** en `.env` (incluyendo Cosmos DB)
 2. **Ejecutar pruebas** con `python test_idp_with_json.py`
 3. **Iniciar servidor** con `python main.py`
-4. **Probar API** en http://localhost:8000/docs
+4. **Probar API** en http://159.203.149.247:8000/docs
 5. **Verificar Cosmos DB** con `python query_cosmos_data.py`
 6. **Personalizar campos** según tus necesidades
 
@@ -441,3 +441,92 @@ El sistema IDP está funcionando perfectamente con:
 - ✅ **Consultas en tiempo real** disponibles
 
 ¡El sistema está listo para producción! 🚀✨
+
+# Despliegue de n8n y nginx
+1. Estructura recomendada de carpetas
+
+```bash
+n8n/
+  ├── docker-compose-nginx.yml
+  ├── nginx/
+  │   ├── nginx.conf
+  │   └── certs/
+  │       ├── self-signed.crt
+  │       └── self-signed.key
+```
+
+2. Generar certificados SSL (opcional para pruebas)
+Puedes generar certificados autofirmados para desarrollo:
+
+```bash
+mkdir -p n8n/nginx/certs
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout n8n/nginx/certs/self-signed.key \
+  -out n8n/nginx/certs/self-signed.crt \
+  -subj "/CN=n8n.example.com"
+```
+
+3. Configuración de nginx
+El archivo nginx.conf ya está preparado para redirigir HTTP a HTTPS y hacer proxy a n8n:
+
+```bash
+// ...existing code...
+server {
+    listen 80;
+    server_name n8n.example.com;
+    location / {
+        return 301 https://n8n.example.com;
+    }
+}
+server {
+    listen 443 ssl;
+    server_name n8n.example.com;
+    ssl_certificate /etc/nginx/certs/self-signed.crt;
+    ssl_certificate_key /etc/nginx/certs/self-signed.key;
+    location / {
+        proxy_pass http://n8n.example.com:5678;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+// ...existing code...
+```
+
+4. Docker Compose para nginx
+El archivo docker-compose-nginx.yml debe incluir el servicio nginx y los volúmenes para la configuración y los certificados:
+
+```bash
+// ...existing code...
+services:
+  nginx:
+    image: nginx:latest
+    extra_hosts:
+      - "n8n.example.com:159.203.149.247"
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/certs:/etc/nginx/certs
+      - /etc/localtime:/etc/localtime:ro
+// ...existing code...
+```
+
+5. Levantar los servicios
+Desde la carpeta n8n, ejecuta:
+
+```bash
+docker compose -f docker-compose-nginx.yml up -d
+```
+
+Asegúrate de que el servicio de n8n esté corriendo en el puerto 5678 y accesible como n8n.example.com (puedes usar otro Compose para n8n o levantarlo manualmente).
+
+6. Acceso
+Accede a n8n vía HTTPS: https://n8n.example.com
+El proxy nginx redirige automáticamente HTTP a HTTPS y soporta WebSockets.

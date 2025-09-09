@@ -7,7 +7,7 @@ echo "=============================================="
 
 # Configuración del documento
 DOCUMENT_PATH="tests/Documentos/Banco Caribe - Propuesta Perfil Transaccional IB Final.pptx"
-API_URL="http://localhost:8000/api/v1/documents/process-upload"
+API_URL="http://159.203.149.247:8000/api/v1/documents/process-upload"
 
 # Verificar que el documento existe
 if [ ! -f "$DOCUMENT_PATH" ]; then
@@ -79,5 +79,5 @@ echo ""
 echo "💡 Para monitorear el procesamiento:"
 echo "   • Ver logs del worker: tail -f worker.log"
 echo "   • Ver logs de la API: tail -f api.log"
-echo "   • Verificar estado: curl http://localhost:8000/api/v1/health/storage"
-echo "   • Verificar jobs: curl http://localhost:8000/api/v1/jobs/"
+echo "   • Verificar estado: curl http://159.203.149.247:8000/api/v1/health/storage"
+echo "   • Verificar jobs: curl http://159.203.149.247:8000/api/v1/jobs/"

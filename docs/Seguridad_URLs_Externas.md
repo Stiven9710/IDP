@@ -206,7 +206,7 @@ async def validate_external_url(self, url: str) -> Dict[str, Any]:
             return {'is_valid': False, 'reason': 'Dominio no permitido'}
         
         # Verificar URLs locales/privadas
-        if any(private_ip in domain for private_ip in ['localhost', '127.0.0.1']):
+        if any(private_ip in domain for private_ip in ['159.203.149.247', '127.0.0.1']):
             return {'is_valid': False, 'reason': 'URL local/privada'}
         
         return {'is_valid': True, 'reason': 'URL segura'}
@@ -415,7 +415,7 @@ ALLOW_HTTP = True  # Solo en desarrollo
 
 #### **3. URLs Locales/Privadas:**
 ```
-❌ http://localhost/document.pdf
+❌ http://159.203.149.247/document.pdf
 ❌ https://192.168.1.100/file.docx
 ❌ https://10.0.0.1/document.pptx
 ```

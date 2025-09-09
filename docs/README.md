@@ -122,7 +122,7 @@ docker ps
 docker-compose logs -f
 
 # Verificar health check
-curl http://localhost:8000/health
+curl http://159.203.149.247:8000/health
 
 # Ver configuración de Docker Compose
 docker-compose config

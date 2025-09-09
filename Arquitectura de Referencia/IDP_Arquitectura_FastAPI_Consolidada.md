@@ -519,7 +519,7 @@ AZURE_STORAGE_ACCOUNT_KEY=your-storage-key
 # Application Settings
 APP_ENVIRONMENT=development
 LOG_LEVEL=INFO
-CORS_ORIGINS=["http://localhost:3000", "https://your-app.azurewebsites.net"]
+CORS_ORIGINS=["http://159.203.149.247:3000", "https://your-app.azurewebsites.net"]
 ```
 
 ### **2. Configuración de la Aplicación**
@@ -559,7 +559,7 @@ class Settings(BaseSettings):
     # Application Settings
     app_environment: str = "development"
     log_level: str = "INFO"
-    cors_origins: List[str] = ["http://localhost:3000"]
+    cors_origins: List[str] = ["http://159.203.149.247:3000"]
     
     class Config:
         env_file = ".env"
