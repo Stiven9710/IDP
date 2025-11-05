@@ -22,8 +22,8 @@ services:
   n8n:
     image: n8nio/n8n
     restart: always
-    extra_hosts:
-      - "n8n.example.com:159.203.149.247"
+#    extra_hosts:
+#      - "n8n.example.com:159.203.149.247"
     env_file:
       - .env
     ports:

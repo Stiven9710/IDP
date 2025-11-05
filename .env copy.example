@@ -47,7 +47,7 @@ AZURE_KEY_VAULT_URL=https://your-keyvault.vault.azure.net/
 # ===========================================
 APP_ENVIRONMENT=development
 LOG_LEVEL=INFO
-CORS_ORIGINS=["http://localhost:3000", "https://your-app.azurewebsites.net"]
+CORS_ORIGINS=["http://159.203.149.247:3000", "https://your-app.azurewebsites.net"]
 
 # ===========================================
 # CONFIGURACIÓN DE SEGURIDAD
