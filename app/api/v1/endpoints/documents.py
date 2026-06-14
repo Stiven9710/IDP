@@ -163,10 +163,11 @@ async def process_document_upload(
         file_size_mb = len(file_content) / (1024 * 1024)
         logger.info(f"📏 Tamaño del archivo: {file_size_mb:.2f} MB")
         
-        # Si el documento es muy grande (>10MB), usar DocumentService para procesamiento asíncrono
-        if file_size_mb > 10.0:
+        threshold_mb = float(settings.sync_processing_threshold_mb)
+        # Si el documento supera el umbral, usar DocumentService para procesamiento asíncrono
+        if file_size_mb > threshold_mb:
             logger.info("🔄 DOCUMENTO GRANDE DETECTADO - ACTIVANDO PROCESAMIENTO ASÍNCRONO")
-            logger.info(f"   📏 Tamaño: {file_size_mb:.2f} MB (> 10 MB)")
+            logger.info(f"   📏 Tamaño: {file_size_mb:.2f} MB (> {threshold_mb} MB)")
             logger.info(f"   📄 Filename: {file.filename}")
             logger.info(f"   🎯 Processing Mode: {processing_mode}")
             logger.info(f"   🔍 Fields Count: {len(fields) if isinstance(fields, list) else len(fields_config) if isinstance(fields_config, dict) else 'N/A'}")
