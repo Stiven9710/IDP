@@ -43,8 +43,7 @@ class DocumentService:
         self.cosmos_service = CosmosService()
         self.blob_storage_service = BlobStorageService()
         
-        # Umbral para procesamiento asíncrono (10MB según requerimiento)
-        self.async_threshold_mb = 10.0        
+        self.async_threshold_mb = float(settings.sync_processing_threshold_mb)
         # Configuración de seguridad para URLs externas (usando configuración centralizada)
         self.security_config = security_config
         
