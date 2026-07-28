@@ -177,6 +177,12 @@ secrets.json
 *.backup
 *.old
 
+# Generated extraction outputs
+output/
+
+# Local RPA scripts with hardcoded credentials (not for version control)
+/Arquitectura de Referencia/Script BAse/
+
 # Compiled files
 *.pyc
 *.pyo
